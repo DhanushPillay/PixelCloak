@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PixelCloak - AI Data Poisoning</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Using Feather icons for lightweight SVG icons similar to Lucide -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+
+    <div class="container">
+        <!-- HEADER -->
+        <header class="hero">
+            <div class="logo-container">
+                <i data-feather="shield" class="logo-icon text-danger glow-danger"></i>
+                <h1 class="glitch-text">PIXEL<span class="text-normal">CLOAK</span></h1>
+            </div>
+            <p class="subtitle font-mono">
+                [ ADVANCED ADVERSARIAL PERTURBATION ENGINE ]<br>
+                Protect your images from unauthorized AI model training and scraping.
+            </p>
+        </header>
+
+        <!-- MAIN UPLOADER -->
+        <main class="main-content">
+            <div id="dropzone" class="card dropzone">
+                <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+                <i data-feather="upload-cloud" class="upload-icon text-accent glow-accent"></i>
+                <h3>INITIALIZE_UPLOAD_SEQUENCE</h3>
+                <p class="font-mono text-muted">DRAG & DROP IMAGES OR CLICK TO BROWSE</p>
+            </div>
+
+            <!-- FILE PREVIEW AREA -->
+            <div id="file-preview-section" class="hidden">
+                <h4 class="section-title text-accent">
+                    <i data-feather="cpu"></i> TARGET_FILES (<span id="file-count">0</span>)
+                </h4>
+                <div id="file-grid" class="file-grid">
+                    <!-- Image previews injected here via JS -->
+                </div>
+            </div>
+
+            <!-- ACTION / PROGRESS AREA -->
+            <div id="action-area" class="card action-area hidden">
+                <!-- Idle State -->
+                <div id="state-idle">
+                    <p class="text-muted mb-4"><span id="ready-count">0</span> file(s) loaded. Ready to execute adversarial perturbation.</p>
+                    <button id="btn-start" class="btn-primary">
+                        <i data-feather="fingerprint"></i> EXECUTE_CLOAKING_PROTOCOL
+                    </button>
+                </div>
+
+                <!-- Processing State -->
+                <div id="state-processing" class="hidden">
+                    <i data-feather="activity" class="spin text-accent mb-4" style="width: 32px; height: 32px;"></i>
+                    <h3 class="glitch-text mb-4">INJECTING_POISON_DATA... <span id="progress-text">0%</span></h3>
+                    <div class="progress-bar-container">
+                        <div id="progress-bar" class="progress-bar"></div>
+                    </div>
+                    <p class="font-mono text-muted mt-4 text-small">Calculating optimal gradient ascent for loaded files...</p>
+                </div>
+
+                <!-- Success State -->
+                <div id="state-success" class="hidden">
+                    <i data-feather="shield" class="text-accent mb-4 glow-accent" style="width: 48px; height: 48px;"></i>
+                    <h2 class="text-accent mb-4">CLOAK_SUCCESSFUL</h2>
+                    <p class="text-muted mb-4">Assets are now cryptographically poisoned against AI scrapers.</p>
+                    <button id="btn-download" class="btn-primary">
+                        <i data-feather="download"></i> DOWNLOAD_SECURE_ASSETS.ZIP
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Initialize Feather icons
+        feather.replace();
+    </script>
+</body>
+</html>
