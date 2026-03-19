@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PixelCloak - AI Data Poisoning</title>
+    <title>PixelCloak - Adversarial Perturbation Engine</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Using Feather icons for lightweight SVG icons similar to Lucide -->
+    <!-- Using Feather icons -->
     <script src="https://unpkg.com/feather-icons"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <!-- JSZip for batch downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
     <canvas id="matrix-canvas"></canvas>
@@ -21,7 +22,7 @@
             </div>
             <p class="subtitle font-mono">
                 [ ADVANCED ADVERSARIAL PERTURBATION ENGINE ]<br>
-                Protect your images from unauthorized AI model training and scraping.
+                Safeguard neural network feature spaces against unauthorized AI scraping.
             </p>
         </header>
 
@@ -29,9 +30,9 @@
         <main class="main-content">
             <div id="dropzone" class="card dropzone">
                 <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
-                <i data-feather="upload-cloud" class="upload-icon text-accent glow-accent"></i>
+                <i data-feather="upload-cloud" class="upload-icon"></i>
                 <h3>INITIALIZE_UPLOAD_SEQUENCE</h3>
-                <p class="font-mono text-muted">DRAG & DROP IMAGES OR CLICK TO BROWSE</p>
+                <p class="font-mono text-muted">DRAG & DROP IMAGES OR CLICK TO BROWSE (MAX 10MB)</p>
             </div>
 
             <!-- FILE PREVIEW AREA -->
@@ -45,41 +46,85 @@
             </div>
 
             <!-- ACTION / PROGRESS AREA -->
-            <div id="action-area" class="card action-area hidden">
-                <!-- Idle State -->
+            <div id="action-area" class="card hidden">
+                <!-- Idle State with Mode Selector -->
                 <div id="state-idle">
-                    <p class="text-muted mb-4"><span id="ready-count">0</span> file(s) loaded. Ready to execute adversarial perturbation.</p>
+                    <div class="mode-selector-container">
+                        <div class="mode-selector-title">
+                            <span>OP_MODE</span>
+                            <span id="mode-status-text" class="text-danger">[ BALANCED_PGD ]</span>
+                        </div>
+                        <div class="mode-track" id="mode-track">
+                            <div class="mode-indicator" id="mode-indicator" style="transform: translateX(100%);"></div>
+                            <button class="mode-btn" data-mode="fast">Fast</button>
+                            <button class="mode-btn active" data-mode="balanced">Balanced</button>
+                            <button class="mode-btn" data-mode="strong">Strong</button>
+                        </div>
+                        <div id="mode-desc" class="font-mono">
+                            10 Step PGD Attack | Epsilon: 4.0/255 | Surrogate: CLIP ViT-B/32<br>
+                            Optimal balance of disruption and imperceptibility.
+                        </div>
+                        <div class="text-muted text-small mt-4 mb-4">
+                            *Note: Adversarial perturbations are fragile. JPEG compression or network downsampling may neutralize protection. PNG output required.
+                        </div>
+                    </div>
+
+                    <p class="text-muted mb-4 text-center"><span id="ready-count">0</span> file(s) loaded. Ready to execute adversarial perturbation.</p>
                     <button id="btn-start" class="btn-primary">
-                        <i data-feather="fingerprint"></i> EXECUTE_CLOAKING_PROTOCOL
+                        <i data-feather="terminal"></i> EXECUTE_CLOAKING_PROTOCOL
                     </button>
                 </div>
 
                 <!-- Processing State -->
-                <div id="state-processing" class="hidden">
+                <div id="state-processing" class="hidden text-center">
                     <i data-feather="activity" class="spin text-accent mb-4" style="width: 32px; height: 32px;"></i>
-                    <h3 class="glitch-text mb-4">INJECTING_POISON_DATA... <span id="progress-text">0%</span></h3>
+                    <h3 class="glitch-text mb-4">APPLYING_GRADIENTS... <span id="progress-text">0%</span></h3>
                     <div class="progress-bar-container">
                         <div id="progress-bar" class="progress-bar"></div>
                     </div>
-                    <p class="font-mono text-muted mt-4 text-small">Calculating optimal gradient ascent for loaded files...</p>
+                    <p class="font-mono text-muted mt-4 text-small">Calculating optimal feature space disruption...</p>
                 </div>
 
                 <!-- Success State -->
-                <div id="state-success" class="hidden">
+                <div id="state-success" class="hidden text-center">
                     <i data-feather="shield" class="text-accent mb-4 glow-accent" style="width: 48px; height: 48px;"></i>
-                    <h2 class="text-accent mb-4">CLOAK_SUCCESSFUL</h2>
-                    <p class="text-muted mb-4">Assets are now cryptographically poisoned against AI scrapers.</p>
-                    <button id="btn-download" class="btn-primary">
-                        <i data-feather="download"></i> DOWNLOAD_SECURE_ASSETS.ZIP
-                    </button>
+                    <h2 class="text-accent mb-4">PERTURBATION_SUCCESSFUL</h2>
+                    <p class="text-muted mb-4">Assets have been adversarially perturbed against diffusion model encoders.</p>
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button id="btn-compare" class="btn-secondary">
+                            <i data-feather="eye"></i> PREVIEW_CHANGE
+                        </button>
+                        <button id="btn-download" class="btn-primary">
+                            <i data-feather="download"></i> DOWNLOAD_SECURE_ASSETS.ZIP
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
 
+    <!-- Before / After Slider Modal -->
+    <div id="comparison-modal" class="hidden">
+        <h2 class="text-accent mb-4" style="font-family: var(--font-mono);">VISUAL_DIAGNOSTIC_RENDER</h2>
+        <div class="slider-container" id="slider-container">
+            <!-- Base Image (After) -->
+            <img id="img-after" class="slider-img" src="" alt="Perturbed">
+            <!-- Overlay Image (Before) -->
+            <div class="slider-overlay" id="slider-overlay">
+                <img id="img-before" class="slider-img-overlay" src="" alt="Original">
+            </div>
+            <!-- Slider Handle -->
+            <div class="slider-handle" id="slider-handle"></div>
+        </div>
+        <div class="modal-controls">
+            <button id="btn-amplify" class="btn-secondary">TOGGLE_10X_NOISE</button>
+            <button id="btn-close-modal" class="btn-secondary" style="border-color: var(--danger-color); color: var(--danger-color)">CLOSE_DIAGNOSTIC</button>
+        </div>
+        <p class="text-muted font-mono mt-4 text-small text-center max-w-md">Left: Original | Right: Perturbed<br>Note: Visualizing PGD noise directly in-browser. 10x Amp drastically increases contrast to reveal the gradient footprint.</p>
+    </div>
+
     <script src="app.js"></script>
     <script>
-        // Initialize Feather icons
         feather.replace();
     </script>
 </body>

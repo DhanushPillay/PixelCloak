@@ -3,3 +3,9 @@ uvicorn
 python-multipart
 Pillow
 numpy
+torch
+torchvision
+transformers
+torch
+torchvision
+transformers
