@@ -3,12 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PixelCloak - Adversarial Perturbation Engine</title>
+    <meta name="description" content="PixelCloak — CPU-only adversarial image cloaking tool using CLIP-driven PGD attacks to protect your images from unauthorized AI training.">
+    <title>PixelCloak — Adversarial Perturbation Engine</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Using Feather icons -->
+    <!-- Feather Icons -->
     <script src="https://unpkg.com/feather-icons"></script>
     <!-- JSZip for batch downloads -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!--
+    To configure the backend API URL for custom deployments, add this
+    BEFORE the app.js script tag:
+    <script> window.PIXELCLOAK_API_URL = 'https://your-server.com'; </script>
+    -->
 </head>
 <body>
     <canvas id="matrix-canvas"></canvas>
@@ -17,10 +24,15 @@
         <!-- HEADER -->
         <header class="hero">
             <div class="logo-container">
-                <i data-feather="shield" class="logo-icon text-danger glow-danger"></i>
-                <h1 class="glitch-text">PIXEL<span class="text-normal">CLOAK</span></h1>
+                <i data-feather="shield" class="logo-icon glow-danger text-danger"></i>
+                <div class="header-bar">
+                    <h1 class="glitch-text" data-text="PIXELCLOAK">PIXEL<span class="text-normal">CLOAK</span></h1>
+                    <button class="btn-audio-toggle" id="btn-audio" title="Toggle ambient audio">
+                        <i data-feather="volume-x" id="audio-icon"></i>
+                    </button>
+                </div>
             </div>
-            <p class="subtitle font-mono">
+            <p class="subtitle">
                 [ ADVANCED ADVERSARIAL PERTURBATION ENGINE ]<br>
                 Safeguard neural network feature spaces against unauthorized AI scraping.
             </p>
@@ -41,7 +53,7 @@
                     <i data-feather="cpu"></i> TARGET_FILES (<span id="file-count">0</span>)
                 </h4>
                 <div id="file-grid" class="file-grid">
-                    <!-- Image previews injected here via JS -->
+                    <!-- Image previews injected via JS -->
                 </div>
             </div>
 
@@ -64,6 +76,16 @@
                             10 Step PGD Attack | Epsilon: 4.0/255 | Surrogate: CLIP ViT-B/32<br>
                             Optimal balance of disruption and imperceptibility.
                         </div>
+                        <div class="mode-params" id="mode-params">
+                            <div>
+                                <div class="mode-param-value" id="param-eps">4.0</div>
+                                <div class="mode-param-label">EPSILON</div>
+                            </div>
+                            <div>
+                                <div class="mode-param-value" id="param-steps">10</div>
+                                <div class="mode-param-label">STEPS</div>
+                            </div>
+                        </div>
                         <div class="text-muted text-small mt-4 mb-4">
                             *Note: Adversarial perturbations are fragile. JPEG compression or network downsampling may neutralize protection. PNG output required.
                         </div>
@@ -78,26 +100,39 @@
                 <!-- Processing State -->
                 <div id="state-processing" class="hidden text-center">
                     <i data-feather="activity" class="spin text-accent mb-4" style="width: 32px; height: 32px;"></i>
-                    <h3 class="glitch-text mb-4">APPLYING_GRADIENTS... <span id="progress-text">0%</span></h3>
+                    <h3 class="glitch-text mb-4" data-text="APPLYING_GRADIENTS...">APPLYING_GRADIENTS... <span id="progress-text">0%</span></h3>
+                    <div class="processing-file-counter" id="file-counter">PROCESSING FILE 0 / 0</div>
                     <div class="progress-bar-container">
                         <div id="progress-bar" class="progress-bar"></div>
                     </div>
+                    <div class="processing-timer" id="processing-timer">00:00</div>
                     <p class="font-mono text-muted mt-4 text-small">Calculating optimal feature space disruption...</p>
                 </div>
 
                 <!-- Success State -->
                 <div id="state-success" class="hidden text-center">
-                    <i data-feather="shield" class="text-accent mb-4 glow-accent" style="width: 48px; height: 48px;"></i>
+                    <div class="success-icon-container">
+                        <i data-feather="shield" class="text-accent mb-4 glow-accent" style="width: 48px; height: 48px;"></i>
+                        <div class="data-burst" id="data-burst"></div>
+                    </div>
                     <h2 class="text-accent mb-4">PERTURBATION_SUCCESSFUL</h2>
                     <p class="text-muted mb-4">Assets have been adversarially perturbed against diffusion model encoders.</p>
-                    <div style="display: flex; gap: 10px; justify-content: center;">
+                    <div id="metadata-display"></div>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                         <button id="btn-compare" class="btn-secondary">
                             <i data-feather="eye"></i> PREVIEW_CHANGE
                         </button>
                         <button id="btn-download" class="btn-primary">
-                            <i data-feather="download"></i> DOWNLOAD_SECURE_ASSETS.ZIP
+                            <i data-feather="download"></i> DOWNLOAD_SECURE_ASSETS
                         </button>
                     </div>
+                </div>
+
+                <!-- Error State -->
+                <div id="state-error" class="hidden text-center">
+                    <h3><i data-feather="alert-triangle"></i> CONNECTION_FAILED</h3>
+                    <p>Could not connect to backend. Ensure the PixelCloak server is running on the configured port.</p>
+                    <button class="btn-retry" id="btn-retry">RETRY_CONNECTION</button>
                 </div>
             </div>
         </main>
@@ -107,21 +142,33 @@
     <div id="comparison-modal" class="hidden">
         <h2 class="text-accent mb-4" style="font-family: var(--font-mono);">VISUAL_DIAGNOSTIC_RENDER</h2>
         <div class="slider-container" id="slider-container">
-            <!-- Base Image (After) -->
+            <!-- Base Image (After / Cloaked) -->
             <img id="img-after" class="slider-img" src="" alt="Perturbed">
-            <!-- Overlay Image (Before) -->
+            <!-- Overlay Image (Before / Original) -->
             <div class="slider-overlay" id="slider-overlay">
                 <img id="img-before" class="slider-img-overlay" src="" alt="Original">
             </div>
             <!-- Slider Handle -->
             <div class="slider-handle" id="slider-handle"></div>
         </div>
+        <div class="slider-labels">
+            <span>◁ ORIGINAL</span>
+            <span>CLOAKED ▷</span>
+        </div>
         <div class="modal-controls">
             <button id="btn-amplify" class="btn-secondary">TOGGLE_10X_NOISE</button>
-            <button id="btn-close-modal" class="btn-secondary" style="border-color: var(--danger-color); color: var(--danger-color)">CLOSE_DIAGNOSTIC</button>
+            <button id="btn-save-diff" class="btn-secondary">SAVE_DIFF_LAYER</button>
+            <button id="btn-close-modal" class="btn-secondary" style="border-color: var(--danger); color: var(--danger)">CLOSE_DIAGNOSTIC</button>
         </div>
-        <p class="text-muted font-mono mt-4 text-small text-center max-w-md">Left: Original | Right: Perturbed<br>Note: Visualizing PGD noise directly in-browser. 10x Amp drastically increases contrast to reveal the gradient footprint.</p>
+        <p class="text-muted font-mono mt-4 text-small text-center" style="max-width: 500px;">
+            Left: Original | Right: Perturbed<br>
+            Use ← → arrow keys to slide. Press Escape to close.<br>
+            10× Amp drastically increases contrast to reveal the gradient footprint.
+        </p>
     </div>
+
+    <!-- Hidden canvas for diff layer computation -->
+    <canvas id="diff-canvas" style="display: none;"></canvas>
 
     <script src="app.js"></script>
     <script>
