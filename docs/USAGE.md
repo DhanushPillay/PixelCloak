@@ -1,28 +1,121 @@
-# PixelCloak Usage
+# PixelCloak Usage Guide
 
 ## Backend
-- Start: `uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
-- Health: `GET /health`
-- Cloak: `POST /cloak` with multipart `file`, form `mode=fast|balanced|strong`
-- Response headers: `X-PixelCloak-Mode`, `X-PixelCloak-Steps`, `X-PixelCloak-Epsilon`, `X-PixelCloak-Time`
+
+### Starting the Server
+```bash
+cd backend
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### API Endpoints
+
+#### `GET /health`
+Returns server status and model state.
+
+#### `POST /cloak`
+Multipart form upload with:
+- `file` — image file (PNG/JPEG, ≤10MB)
+- `mode` — `fast` | `balanced` (default) | `strong`
+
+**Response**: PNG image bytes with metadata headers.
+
+#### Response Headers
+
+| Header | Example | Description |
+|---|---|---|
+| `X-PixelCloak-Mode` | `balanced` | Attack mode used |
+| `X-PixelCloak-Steps` | `10` | PGD iteration count |
+| `X-PixelCloak-Epsilon` | `4.0` | Perturbation budget |
+| `X-PixelCloak-Time` | `2.34s` | Processing duration |
+| `X-PixelCloak-MaxDelta` | `4.12` | Max pixel shift (0–255) |
+| `X-PixelCloak-MeanDelta` | `0.89` | Mean pixel shift (0–255) |
 
 ### Recommended Workflow
-1. Upload PNG/JPEG (<=10MB). Backend converts to RGB.
-2. Backend computes PGD perturbation on 224×224 CLIP space, upscales delta, applies to full-res, returns PNG.
-3. Save PNG (do not reconvert to JPEG) to preserve the perturbation.
+1. Upload PNG or JPEG (≤10MB). Backend converts to RGB.
+2. Backend computes PGD perturbation on 224×224 CLIP space using negated cosine similarity loss.
+3. Perturbation delta is bilinearly upscaled to original resolution and applied.
+4. Response is PNG. **Do not re-encode to JPEG** — this destroys the perturbation.
+
+### Rate Limiting
+The `/cloak` endpoint is rate-limited to **10 requests per minute per IP** via slowapi. Exceeding this returns HTTP 429.
+
+### CORS Configuration
+By default, CORS allows `http://localhost:8000` and `http://127.0.0.1:8000`. Override via environment variable:
+```bash
+export PIXELCLOAK_ALLOWED_ORIGINS="https://app.example.com,https://api.example.com"
+```
+
+---
 
 ## Frontend
-- Open `frontend_vanilla/index.html` (or serve via any static server).
-- Drag/drop or browse images. Pick mode on the segmented control.
-- Run "EXECUTE_CLOAKING_PROTOCOL"; download single files or batch ZIP.
-- Use PREVIEW_CHANGE to see before/after and toggle 10× noise for verification.
 
-## Modes (Research-backed)
-- Fast: FGSM 1 step, ε=2/255 (visual safe, weakest)
-- Balanced: PGD 10 steps, ε=4/255 (recommended balance)
-- Strong: PGD 20 steps, ε=8/255 (may show slight artifacts)
+### Setup
+Open `frontend_vanilla/index.html` directly in a browser, or serve via any static server.
 
-## Performance
-- CPU-only friendly. Torch + CLIP loads once on startup.
-- First-time model pull (~600MB) from Hugging Face; cached after.
-- Per-image runtime depends on resolution; 1–3s typical on modern CPU.
+### Custom API URL
+By default, the frontend connects to `http://localhost:8000`. To configure a different backend:
+```html
+<!-- Add before app.js in index.html -->
+<script> window.PIXELCLOAK_API_URL = 'https://your-server.com'; </script>
+```
+
+### Features
+- Drag-and-drop or browse to upload images
+- 3-mode selector with animated switching (Fast/Balanced/Strong)
+- Real-time processing timer and file counter
+- Response metadata display (mode, epsilon, steps, time, max/mean delta)
+- Before/after comparison slider (mouse, touch, and keyboard: ←/→ arrows, Escape)
+- 10× noise amplification toggle
+- SAVE_DIFF_LAYER: computes `|original - cloaked| × 50` client-side and downloads as PNG
+- Ambient audio toggle (40 Hz binaural drone via Web Audio API, muted by default)
+- JSZip batch download for multiple files
+
+---
+
+## Modes (Attack Configurations)
+
+| Mode | Algorithm | Steps | ε (0–255) | Use Case |
+|---|---|---|---|---|
+| Fast | FGSM | 1 | 2.0 | Quick protection, minimal artifacts |
+| Balanced | PGD | 10 | 4.0 | Best tradeoff (recommended) |
+| Strong | PGD | 20 | 8.0 | Maximum disruption, slight visible noise |
+
+---
+
+## Verification Utility (`verify_poison.py`)
+
+### Basic Comparison
+```bash
+python verify_poison.py original.png cloaked.png
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--amplify N` | `50` | Diff amplification multiplier |
+| `--output PATH` | `POISON_LAYER_REVEALED.png` | Output diff image path |
+| `--compare-clip` | off | Load CLIP and print cosine similarity |
+| `--json` | off | Machine-readable JSON output |
+
+### Example with All Flags
+```bash
+python verify_poison.py photo.png cloaked_photo.png \
+    --amplify 100 \
+    --output my_diff.png \
+    --compare-clip \
+    --json
+```
+
+### CLIP Cosine Similarity Interpretation
+- **> 0.95**: Minimal effect — perturbation barely shifted CLIP features
+- **0.80–0.95**: Moderate disruption — partial feature shift
+- **< 0.80**: Strong disruption — significant embedding alteration
+
+---
+
+## Performance Notes
+- CPU-only. No GPU required.
+- First-time model download (~600MB) from Hugging Face; cached after.
+- Per-image runtime: 1–5s typical on modern CPU depending on mode and steps.
