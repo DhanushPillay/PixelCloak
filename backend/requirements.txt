@@ -1,11 +1,13 @@
-fastapi
-uvicorn
-python-multipart
-Pillow
-numpy
-torch
-torchvision
-transformers
-torch
-torchvision
-transformers
+# PixelCloak backend dependencies
+# Tested with Python 3.10+
+
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-multipart>=0.0.18
+Pillow>=11.0.0
+numpy>=2.1.0
+torch>=2.5.0
+torchvision>=0.20.0
+transformers>=4.46.0
+slowapi>=0.1.9
+filetype>=1.2.0
