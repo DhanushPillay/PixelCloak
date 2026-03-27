@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from io import BytesIO
 from PIL import Image
 
@@ -306,6 +307,11 @@ async def apply_cloak(
     )
 
     return response
+
+# Mount the static frontend so http://localhost:8000/ serves the UI directly
+frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend_vanilla")
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
 
 if __name__ == "__main__":
