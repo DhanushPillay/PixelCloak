@@ -112,6 +112,14 @@ def compare_clip_embeddings(original_path, cloaked_path):
         feat_orig = model.get_image_features(**inputs_orig)
         feat_cloak = model.get_image_features(**inputs_cloak)
 
+        def extract_feats(f):
+            if not isinstance(f, torch.Tensor):
+                f = getattr(f, "pooler_output", getattr(f, "image_embeds", f))
+            return f
+            
+        feat_orig = extract_feats(feat_orig)
+        feat_cloak = extract_feats(feat_cloak)
+
         # L2-normalise
         feat_orig = feat_orig / feat_orig.norm(p=2, dim=-1, keepdim=True)
         feat_cloak = feat_cloak / feat_cloak.norm(p=2, dim=-1, keepdim=True)
