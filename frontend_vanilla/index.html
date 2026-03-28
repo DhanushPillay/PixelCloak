@@ -41,10 +41,10 @@
         <!-- MAIN UPLOADER -->
         <main class="main-content">
             <div id="dropzone" class="card dropzone">
-                <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+                <input type="file" id="file-input" multiple accept="image/*,.png,.jpg,.jpeg,.webp,.avif,.bmp,.tiff,.heic" style="display: none;">
                 <i data-feather="upload-cloud" class="upload-icon"></i>
                 <h3>INITIALIZE_UPLOAD_SEQUENCE</h3>
-                <p class="font-mono text-muted">DRAG & DROP IMAGES OR CLICK TO BROWSE (MAX 10MB)</p>
+                <p class="font-mono text-muted">DRAG & DROP IMAGES OR CLICK TO BROWSE (MAX 100MB)</p>
             </div>
 
             <!-- FILE PREVIEW AREA -->
@@ -153,9 +153,12 @@
         </div>
         <div class="slider-labels">
             <span>◁ ORIGINAL</span>
+            <span id="compare-nav-counter" class="text-accent">1 / 1</span>
             <span>CLOAKED ▷</span>
         </div>
         <div class="modal-controls">
+            <button id="btn-compare-prev" class="btn-secondary" disabled>◁ PREV</button>
+            <button id="btn-compare-next" class="btn-secondary" disabled>NEXT ▷</button>
             <button id="btn-amplify" class="btn-secondary">TOGGLE_10X_NOISE</button>
             <button id="btn-save-diff" class="btn-secondary">SAVE_DIFF_LAYER</button>
             <button id="btn-close-modal" class="btn-secondary" style="border-color: var(--danger); color: var(--danger)">CLOSE_DIAGNOSTIC</button>
@@ -169,6 +172,12 @@
 
     <!-- Hidden canvas for diff layer computation -->
     <canvas id="diff-canvas" style="display: none;"></canvas>
+
+    <!-- Backend health status indicator -->
+    <div id="health-indicator" class="health-indicator" title="Backend status">
+        <span class="health-dot"></span>
+        <span id="health-text">CHECKING...</span>
+    </div>
 
     <script src="app.js"></script>
     <script>
