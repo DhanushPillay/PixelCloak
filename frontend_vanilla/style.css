@@ -953,6 +953,91 @@ body::after {
 }
 
 /* ================================================================
+   File Item Processing States
+   ================================================================ */
+.file-item.success {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(139, 126, 116, 0.3);
+}
+
+.file-item.error {
+    border-color: var(--danger);
+    box-shadow: 0 0 8px rgba(163, 122, 107, 0.4);
+}
+
+.file-item.error::after {
+    content: '\26A0';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    background: rgba(56, 52, 49, 0.85);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--danger);
+    pointer-events: none;
+}
+
+/* ================================================================
+   Health Status Indicator
+   ================================================================ */
+.health-indicator {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: rgba(56, 52, 49, 0.9);
+    color: #eaddce;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    z-index: 500;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s;
+}
+
+.health-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
+    display: inline-block;
+    transition: background 0.3s;
+}
+
+.health-indicator.loading .health-dot {
+    background: var(--danger);
+    animation: pulseGlow 1.5s infinite;
+}
+
+.health-indicator.healthy .health-dot {
+    background: var(--accent);
+}
+
+.health-indicator.error .health-dot {
+    background: var(--danger);
+}
+
+.health-indicator.healthy {
+    border-color: rgba(139, 126, 116, 0.4);
+}
+
+.health-indicator.error {
+    border-color: rgba(163, 122, 107, 0.5);
+}
+
+/* ================================================================
    Responsive Design
    ================================================================ */
 @media (max-width: 600px) {
@@ -1014,6 +1099,13 @@ body::after {
 
     .metadata-strip {
         font-size: 10px;
+    }
+
+    .health-indicator {
+        bottom: 8px;
+        right: 8px;
+        font-size: 10px;
+        padding: 6px 10px;
     }
 }
 
