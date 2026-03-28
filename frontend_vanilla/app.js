@@ -54,8 +54,8 @@ var frameCount = 0;
 
 function drawMatrix() {
     frameCount++;
-    // Fractional opacity for smooth trails
-    ctx.fillStyle = 'rgba(2, 2, 8, 0.12)';
+    // Fractional opacity for smooth trails (Warm Sand Theme)
+    ctx.fillStyle = 'rgba(234, 221, 206, 0.12)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.font = fontSize + 'px "JetBrains Mono", monospace';
@@ -68,17 +68,17 @@ function drawMatrix() {
             var text = getRandomChar();
             var y = drops[i] * fontSize;
 
-            // Lead character: bright white/cyan at the front
-            ctx.shadowColor = '#00e5b0';
-            ctx.shadowBlur = 8;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            // Lead character: Deep Espresso
+            ctx.shadowColor = 'rgba(56, 52, 49, 0.5)';
+            ctx.shadowBlur = 4;
+            ctx.fillStyle = '#383431';
             ctx.fillText(text, i * fontSize, y);
 
-            // Trail characters above (dimmer)
+            // Trail characters above (Warm Taupe)
             if (drops[i] > 1) {
-                ctx.shadowBlur = 3;
-                var alpha = Math.random() * 0.3 + 0.3;
-                ctx.fillStyle = 'rgba(0, 229, 176, ' + alpha + ')';
+                ctx.shadowBlur = 0;
+                var alpha = Math.random() * 0.4 + 0.1;
+                ctx.fillStyle = 'rgba(139, 126, 116, ' + alpha + ')'; // text-secondary
                 var trailChar = getRandomChar();
                 ctx.fillText(trailChar, i * fontSize, (drops[i] - 1) * fontSize);
             }
@@ -238,10 +238,12 @@ if (btnAudio) {
 // =================================================================
 // STATE & DOM ELEMENTS
 // =================================================================
-var selectedFiles = [];
-var processedFiles = [];
+var selectedFiles = [];  // {id, file, previewUrl}
+var processedFiles = []; // {id, name, originalUrl, blob}
 var currentMode = 'balanced';
 var lastResponseMeta = null;  // Store metadata from last successful cloak
+var fileIdCounter = 0;
+var compareIndex = 0;  // index into processedFiles for comparison slider
 
 // Entrance animations
 document.addEventListener('DOMContentLoaded', function() {
@@ -249,7 +251,47 @@ document.addEventListener('DOMContentLoaded', function() {
     var main = document.querySelector('.main-content');
     if (hero) hero.classList.add('animate-entrance');
     if (main) main.classList.add('animate-entrance');
+
+    // Check backend health on load
+    checkBackendHealth();
 });
+
+// Backend health check
+function checkBackendHealth() {
+    var indicator = document.getElementById('health-indicator');
+    var healthText = document.getElementById('health-text');
+    if (!indicator || !healthText) return;
+
+    indicator.style.display = 'flex';
+
+    function poll() {
+        fetch(API_URL + '/health', { signal: AbortSignal.timeout(5000) })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.model_loaded) {
+                    indicator.classList.add('healthy');
+                    indicator.classList.remove('loading', 'error');
+                    healthText.textContent = 'READY';
+                    // Hide after 3s
+                    setTimeout(function() { indicator.style.display = 'none'; }, 3000);
+                } else {
+                    indicator.classList.add('loading');
+                    indicator.classList.remove('healthy', 'error');
+                    healthText.textContent = 'LOADING MODEL...';
+                    setTimeout(poll, 2000);
+                }
+            })
+            .catch(function() {
+                indicator.classList.add('error');
+                indicator.classList.remove('healthy', 'loading');
+                healthText.textContent = 'BACKEND OFFLINE';
+                // Retry every 5s
+                setTimeout(poll, 5000);
+            });
+    }
+
+    poll();
+}
 
 // DOM references
 var dropzone = document.getElementById('dropzone');
@@ -337,43 +379,26 @@ modeBtns.forEach(function(btn) {
 
 
 // =================================================================
-// VISIBILITY HELPERS (fixes broken .hidden + transition)
+// VISIBILITY HELPERS (simplified — no fragile transition callbacks)
 // =================================================================
 function showEl(el) {
-    el.style.opacity = 0;
+    if (!el) return;
     el.classList.remove('hidden');
-    el.style.display = '';  // restore default
-    requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-            el.style.transition = 'opacity 0.3s ease';
-            el.style.opacity = 1;
-        });
-    });
+    // Remove ALL inline overrides so the element falls back to its CSS default
+    el.style.removeProperty('display');
+    el.style.removeProperty('opacity');
 }
 
 function hideEl(el, cb) {
-    el.style.transition = 'opacity 0.3s ease';
-    el.style.opacity = 0;
-    el.addEventListener('transitionend', function handler() {
-        el.removeEventListener('transitionend', handler);
-        el.classList.add('hidden');
-        el.style.display = 'none';
-        if (cb) cb();
-    }, { once: true });
-    // Fallback in case transitionend doesn't fire (e.g. reduced motion)
-    setTimeout(function() {
-        if (!el.classList.contains('hidden')) {
-            el.classList.add('hidden');
-            el.style.display = 'none';
-            if (cb) cb();
-        }
-    }, 400);
+    if (!el) return;
+    el.classList.add('hidden');
+    // Always fire the callback immediately — no more race conditions
+    if (cb) cb();
 }
 
 function transitionState(hideElement, showElement) {
-    hideEl(hideElement, function() {
-        showEl(showElement);
-    });
+    hideEl(hideElement);
+    showEl(showElement);
 }
 
 
@@ -413,24 +438,39 @@ fileInput.addEventListener('change', function() { handleFiles(this.files); });
 
 function handleFiles(files) {
     var newFiles = Array.from(files).filter(function(file) {
-        return file.type.startsWith('image/');
+        return file.type.startsWith('image/') || /\.(jpe?g|png|webp|avif|gif|bmp|tiff?|heic)$/i.test(file.name);
     });
+    var maxSize = 100 * 1024 * 1024;
     var validSizeFiles = newFiles.filter(function(f) {
-        return f.size <= 10 * 1024 * 1024;
+        return f.size <= maxSize;
     });
 
     if (validSizeFiles.length < newFiles.length) {
-        alert('Some files were skipped because they exceed the 10MB limit.');
+        alert('Some files were skipped because they exceed the 100MB limit.');
     }
     if (validSizeFiles.length === 0) return;
 
-    selectedFiles = selectedFiles.concat(validSizeFiles);
+    for (var i = 0; i < validSizeFiles.length; i++) {
+        var f = validSizeFiles[i];
+        var entry = { id: fileIdCounter++, file: f, previewUrl: null };
+        // Create preview URL and track it for cleanup
+        entry.previewUrl = URL.createObjectURL(f);
+        selectedFiles.push(entry);
+    }
     updateUI();
 }
 
-// Remove file (accessible from HTML onclick)
-window.removeFile = function(index) {
-    selectedFiles.splice(index, 1);
+// Remove file by ID (accessible from HTML onclick)
+window.removeFile = function(id) {
+    for (var i = 0; i < selectedFiles.length; i++) {
+        if (selectedFiles[i].id === id) {
+            if (selectedFiles[i].previewUrl) {
+                URL.revokeObjectURL(selectedFiles[i].previewUrl);
+            }
+            selectedFiles.splice(i, 1);
+            break;
+        }
+    }
     updateUI();
 };
 
@@ -448,23 +488,20 @@ function updateUI() {
         readyCount.innerText = selectedFiles.length;
 
         fileGrid.innerHTML = '';
-        selectedFiles.forEach(function(file, index) {
-            var reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onloadend = function() {
-                var div = document.createElement('div');
-                div.className = 'file-item';
-                div.style.animationDelay = (index * 0.05) + 's';
+        selectedFiles.forEach(function(entry, index) {
+            var div = document.createElement('div');
+            div.className = 'file-item';
+            div.style.animationDelay = (index * 0.05) + 's';
 
-                div.innerHTML =
-                    '<img src="' + reader.result + '" alt="preview">' +
-                    '<div class="file-label">' + file.name + '</div>' +
-                    '<button class="btn-remove" onclick="removeFile(' + index + ')">' +
-                        '<i data-feather="x" style="width: 14px; height: 14px;"></i>' +
-                    '</button>';
-                fileGrid.appendChild(div);
-                feather.replace();
-            };
+            var src = entry.previewUrl || '';
+            div.innerHTML =
+                '<img src="' + src + '" alt="preview">' +
+                '<div class="file-label">' + entry.file.name + '</div>' +
+                '<button class="btn-remove" onclick="removeFile(' + entry.id + ')">' +
+                    '<i data-feather="x" style="width: 14px; height: 14px;"></i>' +
+                '</button>';
+            fileGrid.appendChild(div);
+            feather.replace();
         });
     } else {
         hideEl(filePreviewSection);
@@ -506,17 +543,21 @@ btnStart.addEventListener('click', async function() {
     lastResponseMeta = null;
     var completed = 0;
     var totalFailed = 0;
+    var total = selectedFiles.length;
 
-    for (var i = 0; i < selectedFiles.length; i++) {
-        var file = selectedFiles[i];
+    // Mark all file items as pending
+    var fileItems = fileGrid.querySelectorAll('.file-item');
+    fileItems.forEach(function(item) { item.classList.remove('error', 'success'); });
+
+    // Process with concurrency limit of 2
+    var concurrency = 2;
+    var queue = selectedFiles.slice();
+    var fileErrors = {};  // id -> error message
+
+    async function processEntry(entry, gridIndex) {
         var formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', entry.file);
         formData.append('mode', currentMode);
-
-        // Update file counter
-        if (fileCounter) {
-            fileCounter.textContent = 'PROCESSING FILE ' + (i + 1) + ' / ' + selectedFiles.length;
-        }
 
         try {
             var response = await fetch(API_URL + '/cloak', {
@@ -525,14 +566,16 @@ btnStart.addEventListener('click', async function() {
             });
 
             if (!response.ok) {
-                totalFailed++;
-                completed++;
-                var percent2 = Math.round((completed / selectedFiles.length) * 100);
-                progressBar.style.width = percent2 + '%';
-                continue;
+                var errText = await response.text();
+                var errMsg = "HTTP " + response.status;
+                try {
+                    var parsed = JSON.parse(errText);
+                    if (parsed.error) errMsg = parsed.error;
+                } catch(e) { errMsg = errText; }
+                fileErrors[entry.id] = errMsg;
+                return { success: false, id: entry.id, error: errMsg };
             }
 
-            // Read response metadata from headers
             var meta = {
                 mode: response.headers.get('X-PixelCloak-Mode') || currentMode,
                 steps: response.headers.get('X-PixelCloak-Steps') || '?',
@@ -544,31 +587,65 @@ btnStart.addEventListener('click', async function() {
             lastResponseMeta = meta;
 
             var blob = await response.blob();
-            var origUrl = URL.createObjectURL(file);
-
             processedFiles.push({
-                name: 'cloaked_' + file.name.split('.')[0] + '.png',
-                originalUrl: origUrl,
+                id: entry.id,
+                name: 'cloaked_' + entry.file.name.split('.')[0] + '.png',
+                originalUrl: entry.previewUrl || URL.createObjectURL(entry.file),
                 blob: blob
             });
+            return { success: true, id: entry.id };
 
         } catch (error) {
-            console.error('Error processing ' + file.name + ':', error);
-            totalFailed++;
+            fileErrors[entry.id] = error.message;
+            return { success: false, id: entry.id, error: error.message };
         }
-
-        completed++;
-        var percent = Math.round((completed / selectedFiles.length) * 100);
-        progressBar.style.width = percent + '%';
-
-        var pctScrambler = new TextScrambler(progressText);
-        pctScrambler.setText(percent + '%');
     }
+
+    async function worker() {
+        while (queue.length > 0) {
+            var entry = queue.shift();
+            var gridIndex = selectedFiles.indexOf(entry);
+            if (fileCounter) {
+                fileCounter.textContent = 'PROCESSING FILE ' + (completed + 1) + ' / ' + total;
+            }
+            var result = await processEntry(entry, gridIndex);
+            completed++;
+            if (!result.success) totalFailed++;
+
+            // Mark file item visually
+            var items = fileGrid.querySelectorAll('.file-item');
+            for (var i = 0; i < items.length; i++) {
+                if (selectedFiles[i] && selectedFiles[i].id === result.id) {
+                    items[i].classList.add(result.success ? 'success' : 'error');
+                    if (!result.success) {
+                        items[i].title = result.error;
+                    }
+                    break;
+                }
+            }
+
+            var percent = Math.round((completed / total) * 100);
+            progressBar.style.width = percent + '%';
+
+            var pctScrambler = new TextScrambler(progressText);
+            pctScrambler.setText(percent + '%');
+        }
+    }
+
+    // Launch workers
+    var workers = [];
+    for (var w = 0; w < Math.min(concurrency, total); w++) {
+        workers.push(worker());
+    }
+    await Promise.all(workers);
 
     stopProcessingTimer();
 
     if (processedFiles.length > 0) {
         transitionState(stateProcessing, stateSuccess);
+
+        // Reset comparison index
+        compareIndex = 0;
 
         // Trigger data burst animation
         var burst = document.getElementById('data-burst');
@@ -582,9 +659,16 @@ btnStart.addEventListener('click', async function() {
             displayMetadata(lastResponseMeta);
         }
 
+        // Show partial failure message if some files failed
+        if (totalFailed > 0 && totalFailed < total) {
+            var partialMsg = document.createElement('p');
+            partialMsg.className = 'text-muted text-small mt-4';
+            partialMsg.textContent = totalFailed + ' of ' + total + ' file(s) failed. Check highlighted files for details.';
+            metadataDisplay.appendChild(partialMsg);
+        }
+
         feather.replace();
     } else {
-        // All files failed — show error state instead of alert
         if (stateError) {
             transitionState(stateProcessing, stateError);
             feather.replace();
@@ -685,8 +769,23 @@ var isDragging = false;
 
 btnCompare.addEventListener('click', function() {
     if (processedFiles.length === 0) return;
+    compareIndex = 0;
+    loadComparisonImage(compareIndex);
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    setTimeout(function() { modal.style.opacity = 1; }, 10);
+    setSliderPosition(50);
+});
 
-    var previewData = processedFiles[0];
+function loadComparisonImage(idx) {
+    if (idx < 0 || idx >= processedFiles.length) return;
+    compareIndex = idx;
+    var previewData = processedFiles[idx];
+
+    // Revoke previous Object URLs for modal images to prevent leaks
+    if (imgBefore.src && imgBefore.src.startsWith('blob:')) URL.revokeObjectURL(imgBefore.src);
+    if (imgAfter.src && imgAfter.src.startsWith('blob:')) URL.revokeObjectURL(imgAfter.src);
+
     imgBefore.src = previewData.originalUrl;
     imgAfter.src = URL.createObjectURL(previewData.blob);
 
@@ -697,11 +796,18 @@ btnCompare.addEventListener('click', function() {
     btnAmplify.style.color = '';
     btnAmplify.style.boxShadow = '';
 
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-    setTimeout(function() { modal.style.opacity = 1; }, 10);
-    setSliderPosition(50);
-});
+    // Update nav counter
+    var navCounter = document.getElementById('compare-nav-counter');
+    if (navCounter) {
+        navCounter.textContent = (idx + 1) + ' / ' + processedFiles.length;
+    }
+
+    // Update nav button states
+    var btnPrev = document.getElementById('btn-compare-prev');
+    var btnNext = document.getElementById('btn-compare-next');
+    if (btnPrev) btnPrev.disabled = (idx === 0);
+    if (btnNext) btnNext.disabled = (idx === processedFiles.length - 1);
+}
 
 btnCloseModal.addEventListener('click', closeModal);
 
@@ -733,11 +839,11 @@ btnAmplify.addEventListener('click', function() {
 // Save diff layer: compute |original - cloaked| on hidden canvas, amplify x50
 if (btnSaveDiff) {
     btnSaveDiff.addEventListener('click', function() {
-        if (processedFiles.length === 0) return;
+        if (processedFiles.length === 0 || compareIndex >= processedFiles.length) return;
 
         var diffCanvas = document.getElementById('diff-canvas');
         var diffCtx = diffCanvas.getContext('2d');
-        var data = processedFiles[0];
+        var data = processedFiles[compareIndex];
 
         var imgOrig = new Image();
         var imgCloak = new Image();
@@ -793,6 +899,21 @@ if (btnSaveDiff) {
     });
 }
 
+// Comparison slider navigation
+var btnComparePrev = document.getElementById('btn-compare-prev');
+var btnCompareNext = document.getElementById('btn-compare-next');
+
+if (btnComparePrev) {
+    btnComparePrev.addEventListener('click', function() {
+        if (compareIndex > 0) loadComparisonImage(compareIndex - 1);
+    });
+}
+if (btnCompareNext) {
+    btnCompareNext.addEventListener('click', function() {
+        if (compareIndex < processedFiles.length - 1) loadComparisonImage(compareIndex + 1);
+    });
+}
+
 
 // --- Slider position ---
 function setSliderPosition(percent) {
@@ -844,12 +965,18 @@ function moveSlider(e) {
     setSliderPosition(percent);
 }
 
-// Keyboard support: Escape closes, arrow keys move slider
+// Keyboard support: Escape closes, arrow keys move slider, Shift+arrows navigate files
 document.addEventListener('keydown', function(e) {
     if (modal.classList.contains('hidden')) return;
 
     if (e.key === 'Escape') {
         closeModal();
+    } else if (e.key === 'ArrowLeft' && e.shiftKey) {
+        e.preventDefault();
+        if (compareIndex > 0) loadComparisonImage(compareIndex - 1);
+    } else if (e.key === 'ArrowRight' && e.shiftKey) {
+        e.preventDefault();
+        if (compareIndex < processedFiles.length - 1) loadComparisonImage(compareIndex + 1);
     } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         var current = parseFloat(sliderHandle.style.left) || 50;

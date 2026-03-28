@@ -33,11 +33,17 @@ from slowapi.errors import RateLimitExceeded
 # ---------------------------------------------------------------------------
 
 ALLOWED_ORIGINS = os.environ.get(
-    "PIXELCLOAK_ALLOWED_ORIGINS",
-    "http://localhost:8000,http://127.0.0.1:8000"
+    "PIXELCLOAK_ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"
 ).split(",")
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+# Also allow common localhost ports (e.g. file:// index.html or VS Code Live Server)
+# to prevent connection failures when opening the frontend directly from disk.
+ALLOWED_ORIGIN_REGEX = os.environ.get(
+    "PIXELCLOAK_ALLOWED_ORIGIN_REGEX",
+    r"https?://(localhost|127\.0\.0\.1)(:\\d+)?|file://.*",
+)
+
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
 # ---------------------------------------------------------------------------
 # Global model references
@@ -57,6 +63,7 @@ limiter = Limiter(key_func=get_remote_address)
 # Lifespan (replaces deprecated @app.on_event)
 # ---------------------------------------------------------------------------
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load CLIP on startup, free memory on shutdown."""
@@ -69,7 +76,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown: free model memory
     del model, processor
-    torch.cuda.empty_cache()
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -78,7 +85,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="PixelCloak API",
     description="Adversarial Perturbation Engine",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
@@ -87,6 +94,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -96,19 +104,24 @@ app.add_middleware(
 # Health check
 # ---------------------------------------------------------------------------
 
+
 @app.get("/health")
 def health_check():
     return {
         "status": "healthy",
         "model_loaded": model is not None,
-        "device": str(device)
+        "device": str(device),
     }
+
 
 # ---------------------------------------------------------------------------
 # PGD / FGSM Attack Engine
 # ---------------------------------------------------------------------------
 
-def apply_pgd_attack(image: Image.Image, eps_val: float, steps: int, is_fgsm: bool = False) -> tuple:
+
+def apply_pgd_attack(
+    image: Image.Image, eps_val: float, steps: int, is_fgsm: bool = False
+) -> tuple:
     """
     Apply PGD (or FGSM) attack to disrupt CLIP embeddings.
 
@@ -126,23 +139,42 @@ def apply_pgd_attack(image: Image.Image, eps_val: float, steps: int, is_fgsm: bo
 
     # 1. Prepare original high-res image tensor
     orig_width, orig_height = image.size
-    img_tensor = transforms.ToTensor()(image).unsqueeze(0).to(device)  # [1, 3, H, W], [0, 1]
+    img_tensor = (
+        transforms.ToTensor()(image).unsqueeze(0).to(device)
+    )  # [1, 3, H, W], [0, 1]
 
     # 2. Prepare 224x224 version for CLIP input
     resize_transform = transforms.Resize((224, 224), antialias=True)
     img_224 = resize_transform(img_tensor)
 
     # CLIP normalisation constants (applied manually so gradients flow to pixels)
-    pixel_mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1).to(device)
-    pixel_std = torch.tensor([0.26862954, 0.26130258, 0.27577711]).view(1, 3, 1, 1).to(device)
+    pixel_mean = (
+        torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1).to(device)
+    )
+    pixel_std = (
+        torch.tensor([0.26862954, 0.26130258, 0.27577711]).view(1, 3, 1, 1).to(device)
+    )
 
     def normalize(x):
         return (x - pixel_mean) / pixel_std
 
+    def get_features(x):
+        feats = model.get_image_features(x)
+        if not isinstance(feats, torch.Tensor):
+            if hasattr(feats, "pooler_output"):
+                feats = feats.pooler_output
+            elif hasattr(feats, "image_embeds"):
+                feats = feats.image_embeds
+            elif hasattr(feats, "last_hidden_state"):
+                feats = feats.last_hidden_state[:, 0, :]
+            else:
+                feats = feats[0] if isinstance(feats, tuple) else feats
+        return feats
+
     # 3. Extract original (clean) CLIP features — no gradients needed
     with torch.no_grad():
         norm_img_224 = normalize(img_224)
-        orig_features = model.get_image_features(norm_img_224)
+        orig_features = get_features(norm_img_224)
         orig_features = orig_features / orig_features.norm(p=2, dim=-1, keepdim=True)
 
     # 4. PGD setup
@@ -155,7 +187,9 @@ def apply_pgd_attack(image: Image.Image, eps_val: float, steps: int, is_fgsm: bo
         perturbed_224 = img_224.clone().detach()
     else:
         # PGD: random init within epsilon ball
-        perturbed_224 = img_224.clone().detach() + torch.empty_like(img_224).uniform_(-eps, eps)
+        perturbed_224 = img_224.clone().detach() + torch.empty_like(img_224).uniform_(
+            -eps, eps
+        )
         perturbed_224 = torch.clamp(perturbed_224, 0.0, 1.0)
 
     # 5. Iterative optimisation loop
@@ -165,7 +199,7 @@ def apply_pgd_attack(image: Image.Image, eps_val: float, steps: int, is_fgsm: bo
 
         # Forward pass through CLIP
         norm_perturbed = normalize(perturbed_224)
-        adv_features = model.get_image_features(norm_perturbed)
+        adv_features = get_features(norm_perturbed)
         adv_features = adv_features / adv_features.norm(p=2, dim=-1, keepdim=True)
 
         # Loss: negated cosine similarity
@@ -189,9 +223,7 @@ def apply_pgd_attack(image: Image.Image, eps_val: float, steps: int, is_fgsm: bo
 
     if (orig_width, orig_height) != (224, 224):
         upsample = torch.nn.Upsample(
-            size=(orig_height, orig_width),
-            mode='bilinear',
-            align_corners=False
+            size=(orig_height, orig_width), mode="bilinear", align_corners=False
         )
         final_delta_orig = upsample(final_delta_224)
     else:
@@ -218,40 +250,75 @@ def apply_pgd_attack(image: Image.Image, eps_val: float, steps: int, is_fgsm: bo
 # File validation helpers
 # ---------------------------------------------------------------------------
 
+
 def validate_image_bytes(data: bytes) -> bool:
     """Validate file is actually an image using magic bytes, not client headers."""
     kind = filetype.guess(data)
-    if kind is None:
+    if kind is not None and kind.mime.startswith("image/"):
+        return True
+    # Fallback: if filetype misses it, check if Pillow can at least verify it
+    try:
+        Image.open(BytesIO(data)).verify()
+        return True
+    except Exception:
         return False
-    return kind.mime.startswith("image/")
 
 
 # ---------------------------------------------------------------------------
 # Cloak endpoint
 # ---------------------------------------------------------------------------
 
+
+VALID_MODES = {"fast", "balanced", "strong"}
+MIN_IMAGE_DIM = 32
+MAX_IMAGE_DIM = 8192
+PROCESSING_TIMEOUT = 120  # seconds
+
+
+async def read_upload_with_limit(file: UploadFile, max_size: int) -> tuple[bytes, bool]:
+    """Read upload in chunks, aborting early if size limit exceeded."""
+    total = 0
+    chunks = []
+    while True:
+        chunk = await file.read(1024 * 1024)  # 1 MB chunks
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_size:
+            return b"", True  # exceeded
+        chunks.append(chunk)
+    return b"".join(chunks), False
+
+
 @app.post("/cloak")
 @limiter.limit("10/minute")
 async def apply_cloak(
-    request: Request,
-    file: UploadFile = File(...),
-    mode: str = Form("balanced")
+    request: Request, file: UploadFile = File(...), mode: str = Form("balanced")
 ):
-    # Read raw bytes
-    image_data = await file.read()
-
-    # Size check
-    if len(image_data) > MAX_FILE_SIZE:
+    # Validate mode
+    if mode not in VALID_MODES:
         return JSONResponse(
             status_code=400,
-            content={"error": "File size exceeds 10MB limit."}
+            content={
+                "error": f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(VALID_MODES))}."
+            },
+        )
+
+    # Read raw bytes with size guard
+    image_data, exceeded = await read_upload_with_limit(file, MAX_FILE_SIZE)
+    if exceeded:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f"File size exceeds {MAX_FILE_SIZE // (1024 * 1024)}MB limit."
+            },
         )
 
     # Validate image using magic bytes (not client content-type header)
     if not validate_image_bytes(image_data):
         return JSONResponse(
             status_code=400,
-            content={"error": "Invalid file type. Only image files are allowed."}
+            content={"error": "Invalid file type. Only image files are allowed."},
         )
 
     # Try to open with Pillow — rejects corrupt / malicious files
@@ -260,7 +327,24 @@ async def apply_cloak(
     except Exception:
         return JSONResponse(
             status_code=400,
-            content={"error": "Could not decode image. File may be corrupt."}
+            content={"error": "Could not decode image. File may be corrupt."},
+        )
+
+    # Dimension validation
+    w, h = img.size
+    if w < MIN_IMAGE_DIM or h < MIN_IMAGE_DIM:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f"Image too small ({w}x{h}). Minimum dimension is {MIN_IMAGE_DIM}px."
+            },
+        )
+    if w > MAX_IMAGE_DIM or h > MAX_IMAGE_DIM:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f"Image too large ({w}x{h}). Maximum dimension is {MAX_IMAGE_DIM}px."
+            },
         )
 
     # Determine attack parameters from mode
@@ -272,23 +356,26 @@ async def apply_cloak(
     elif mode == "strong":
         steps = 20
         eps = 8.0
-    else:  # balanced (default)
-        mode = "balanced"
+    else:  # balanced
         steps = 10
         eps = 4.0
 
-    # Run CPU-bound attack in a thread executor so we don't block the event loop
-    loop = asyncio.get_event_loop()
+    # Run CPU-bound attack in a thread so we don't block the event loop
     try:
-        poisoned_bytes, p_time, max_delta, mean_delta = await loop.run_in_executor(
-            None,
-            apply_pgd_attack,
-            img, eps, steps, is_fgsm
+        poisoned_bytes, p_time, max_delta, mean_delta = await asyncio.wait_for(
+            asyncio.to_thread(apply_pgd_attack, img, eps, steps, is_fgsm),
+            timeout=PROCESSING_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        return JSONResponse(
+            status_code=504,
+            content={
+                "error": f"Processing timed out after {PROCESSING_TIMEOUT}s. Try a smaller image or 'fast' mode."
+            },
         )
     except Exception as e:
         return JSONResponse(
-            status_code=500,
-            content={"error": f"Error cloaking image: {str(e)}"}
+            status_code=500, content={"error": f"Error cloaking image: {str(e)}"}
         )
 
     # Build response with metadata headers
@@ -308,6 +395,7 @@ async def apply_cloak(
 
     return response
 
+
 # Mount the static frontend so http://localhost:8000/ serves the UI directly
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend_vanilla")
 if os.path.exists(frontend_dir):
@@ -316,4 +404,5 @@ if os.path.exists(frontend_dir):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

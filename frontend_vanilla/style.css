@@ -7,19 +7,19 @@
 
 /* --- Design Tokens --- */
 :root {
-    --bg-void:        #000000;
-    --bg-surface:     rgba(10, 10, 15, 0.6);
-    --bg-elevated:    rgba(20, 20, 30, 0.8);
-    --accent:         #00ffcc;
-    --accent-dim:     #00b38f;
-    --accent-glow:    rgba(0, 255, 204, 0.3);
-    --danger:         #ff0055;
-    --danger-dim:     #b3003c;
-    --text-primary:   #ffffff;
-    --text-secondary: #94a3b8;
-    --text-tertiary:  #475569;
-    --border-subtle:  rgba(255,255,255,0.08);
-    --border-accent:  rgba(0, 255, 204, 0.3);
+    --bg-void:        #eaddce; /* Warm soothing Sand */
+    --bg-surface:     rgba(255, 255, 255, 0.45); /* Soft frost */
+    --bg-elevated:    rgba(255, 255, 255, 0.7);
+    --accent:         #8b7e74; /* Warm Muted Taupe */
+    --accent-dim:     #a09388;
+    --accent-glow:    rgba(139, 126, 116, 0.15);
+    --danger:         #a37a6b; /* Dusty Terracotta */
+    --danger-dim:     #c29483;
+    --text-primary:   #383431; /* Deep Espresso */
+    --text-secondary: #6b635e; /* Warm Medium Gray */
+    --text-tertiary:  #9e948d;
+    --border-subtle:  rgba(139, 126, 116, 0.2);
+    --border-accent:  rgba(139, 126, 116, 0.4);
     --font-body:      'IBM Plex Sans', system-ui, -apple-system, sans-serif;
     --font-display:   'Syne', sans-serif;
     --font-mono:      'JetBrains Mono', 'Fira Code', monospace;
@@ -41,37 +41,55 @@ body {
     overflow-x: hidden;
     position: relative;
     background-color: var(--bg-void);
-    /* Layer 2: Complex, rich slow-panning gradient mesh */
-    background-image:
-        radial-gradient(1000px circle at top center, rgba(0, 255, 204, 0.1), transparent 60%),
-        radial-gradient(1200px circle at bottom right, rgba(255, 0, 85, 0.08), transparent 50%),
-        radial-gradient(800px circle at left center, rgba(0, 150, 255, 0.06), transparent 50%),
-        linear-gradient(135deg, #020205, #080812 40%, #030408 80%);
-    background-size: 200% 200%;
-    animation: bg-pan 25s ease-in-out infinite alternate;
+    background-image: linear-gradient(
+        135deg, 
+        #eaddce 0%, 
+        #e3d1be 25%, 
+        #d5c3af 50%, 
+        #e3d1be 75%, 
+        #eaddce 100%
+    );
+    background-size: 400% 400%;
+    animation: bg-pan-sand 30s ease-in-out infinite alternate;
 }
 
-/* Layer 3: SVG noise texture overlay */
+@keyframes bg-pan-sand {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Layer 3: Elegant animated diagonal mesh */
 body::before {
     content: '';
     position: fixed;
-    inset: 0;
+    inset: -50%; /* oversize to allow panning */
     pointer-events: none;
     z-index: -3;
-    opacity: 0.15;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
-    background-repeat: repeat;
-    mix-blend-mode: overlay;
+    opacity: 0.3;
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(139, 126, 116, 0.2) 0px,
+        rgba(139, 126, 116, 0.2) 1px,
+        transparent 1px,
+        transparent 20px
+    );
+    animation: panLines 40s linear infinite;
 }
 
-/* Layer 5: vignette */
+@keyframes panLines {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(28px, 28px); } /* 20 * sqrt(2) approx 28px for smooth diagonal loop */
+}
+
+/* Layer 5: Clean gentle vignette */
 body::after {
     content: '';
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: -1;
-    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.8) 100%);
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(56, 52, 49, 0.05) 100%);
 }
 
 @keyframes bg-pan {
@@ -100,8 +118,8 @@ body::after {
 }
 
 @keyframes pulseGlow {
-    0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 204, 0.2), inset 0 0 10px rgba(0, 255, 204, 0.1); }
-    50%      { box-shadow: 0 0 40px rgba(0, 255, 204, 0.4), inset 0 0 20px rgba(0, 255, 204, 0.2); }
+    0%, 100% { box-shadow: 0 0 20px rgba(139, 126, 116, 0.1), inset 0 0 10px rgba(139, 126, 116, 0.05); }
+    50%      { box-shadow: 0 0 40px rgba(139, 126, 116, 0.25), inset 0 0 20px rgba(139, 126, 116, 0.15); }
 }
 
 @keyframes progressStripes {
@@ -228,7 +246,7 @@ body::after {
     height: 2px;
     margin: 16px auto 0;
     background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    box-shadow: 0 0 18px rgba(0, 229, 176, 0.4);
+    box-shadow: 0 0 12px rgba(139, 126, 116, 0.3);
 }
 
 .logo-container {
@@ -250,10 +268,9 @@ body::after {
     font-size: 4.5rem;
     font-weight: 800;
     letter-spacing: 8px;
-    color: #fff;
+    color: var(--text-primary);
     margin: 0;
     font-family: var(--font-display);
-    text-shadow: 0 0 40px rgba(0, 255, 204, 0.3), 0 0 10px rgba(255, 0, 85, 0.2);
     line-height: 1;
 }
 
@@ -265,7 +282,6 @@ body::after {
     letter-spacing: 1px;
     font-family: var(--font-mono);
     text-transform: uppercase;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Header bar */
@@ -319,19 +335,7 @@ body::after {
     overflow: hidden;
 }
 
-/* Gradient glowing background for cards */
-.card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    padding: 1px;
-    background: linear-gradient(135deg, rgba(0,255,204,0.3) 0%, rgba(255,255,255,0.05) 50%, rgba(255,0,85,0.2) 100%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-}
+/* Remove glowing element from card as we use pure light glass */
 
 .main-content {
     width: 100%;
@@ -342,13 +346,13 @@ body::after {
    Dropzone
    ================================================================ */
 .dropzone {
-    border: 1px dashed rgba(255,255,255,0.2);
-    background: linear-gradient(180deg, rgba(20,20,30,0.5) 0%, rgba(10,10,15,0.8) 100%);
+    border: 1px dashed rgba(100, 116, 139, 0.4);
+    background: linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(240,244,249,0.5) 100%);
     cursor: pointer;
     padding: 80px 20px;
     text-align: center;
     transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-    border-radius: 8px;
+    border-radius: 12px;
     position: relative;
     overflow: hidden;
     z-index: 1;
@@ -363,7 +367,7 @@ body::after {
     width: 100%;
     height: 3px;
     background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    box-shadow: 0 0 20px var(--accent), 0 0 5px #fff;
+    box-shadow: 0 0 20px var(--accent), 0 0 10px #fff;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
@@ -378,18 +382,18 @@ body::after {
 
 .dropzone:hover, .dropzone.dragover {
     border-color: transparent;
-    background: linear-gradient(180deg, rgba(0,255,204,0.05) 0%, rgba(0,0,0,0.8) 100%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(240,244,249,0.95) 100%);
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+    box-shadow: 0 30px 60px rgba(15, 23, 42, 0.08);
 }
 
 .dropzone:hover::before, .dropzone.dragover::before {
     content: '';
     position: absolute;
     inset: 0;
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 2px;
-    background: linear-gradient(180deg, var(--accent), transparent);
+    background: linear-gradient(135deg, var(--accent), var(--danger));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -401,7 +405,7 @@ body::after {
     height: 48px;
     margin-bottom: 24px;
     color: var(--text-secondary);
-    opacity: 0.8;
+    opacity: 0.6;
     transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
@@ -409,7 +413,7 @@ body::after {
     opacity: 1;
     color: var(--accent);
     transform: translateY(-8px) scale(1.1);
-    filter: drop-shadow(0 10px 15px rgba(0, 255, 204, 0.4));
+    filter: drop-shadow(0 10px 15px rgba(0, 210, 255, 0.3));
 }
 
 .dropzone h3 {
@@ -418,7 +422,7 @@ body::after {
     letter-spacing: 2px;
     margin-bottom: 8px;
     font-family: var(--font-mono);
-    color: #fff;
+    color: var(--text-primary);
 }
 
 /* ================================================================
@@ -426,11 +430,11 @@ body::after {
    ================================================================ */
 .mode-selector-container {
     margin-bottom: 40px;
-    background: rgba(0,0,0,0.4);
+    background: rgba(255,255,255,0.4);
     padding: 30px;
-    border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.05);
-    box-shadow: inset 0 2px 20px rgba(0,0,0,0.5);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: inset 0 2px 20px rgba(15, 23, 42, 0.02);
 }
 
 .mode-selector-title {
@@ -446,12 +450,12 @@ body::after {
 .mode-track {
     display: flex;
     position: relative;
-    background: #000;
-    border-radius: 6px;
+    background: rgba(240, 244, 249, 0.8);
+    border-radius: 8px;
     height: 56px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.8);
     overflow: hidden;
-    box-shadow: inset 0 2px 10px rgba(0,0,0,0.8);
+    box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.05);
 }
 
 .mode-btn {
@@ -468,11 +472,11 @@ body::after {
 }
 
 .mode-btn:hover {
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .mode-btn.active { 
-    color: #000; 
+    color: #fff; 
     text-shadow: none;
 }
 
@@ -482,9 +486,9 @@ body::after {
     left: 4px;
     height: calc(100% - 8px);
     width: calc(33.333% - 8px);
-    background: linear-gradient(135deg, var(--accent), #00c29a);
-    box-shadow: 0 4px 15px rgba(0, 255, 204, 0.4);
-    border-radius: 4px;
+    background: linear-gradient(135deg, var(--accent), var(--danger));
+    box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+    border-radius: 6px;
     z-index: 1;
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -562,7 +566,7 @@ body::after {
 .file-label {
     position: absolute;
     bottom: 0; left: 0; right: 0;
-    background: rgba(2, 2, 8, 0.9);
+    background: rgba(56, 52, 49, 0.85);
     padding: 6px;
     font-size: 10px;
     white-space: nowrap;
@@ -570,15 +574,15 @@ body::after {
     text-overflow: ellipsis;
     border-top: 1px solid var(--border-accent);
     font-family: var(--font-mono);
-    color: var(--accent);
+    color: #eaddce;
 }
 
 .btn-remove {
     position: absolute;
     top: 6px;
     right: 6px;
-    background: rgba(2, 2, 8, 0.85);
-    border: 1px solid rgba(255, 45, 107, 0.5);
+    background: rgba(56, 52, 49, 0.85);
+    border: 1px solid rgba(163, 122, 107, 0.5);
     border-radius: 50%;
     width: 24px;
     height: 24px;
@@ -594,28 +598,28 @@ body::after {
     background: var(--danger);
     color: #fff;
     transform: rotate(90deg) scale(1.1);
-    box-shadow: 0 0 10px rgba(255, 45, 107, 0.6);
+    box-shadow: 0 0 10px rgba(163, 122, 107, 0.6);
 }
 
 /* ================================================================
    Buttons
    ================================================================ */
 .btn-primary {
-    background: linear-gradient(135deg, rgba(0, 255, 204, 0.1) 0%, rgba(0, 150, 255, 0.1) 100%);
-    color: var(--accent);
-    border: 1px solid var(--accent);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--danger) 100%);
+    color: #fff;
+    border: none;
     padding: 16px 36px;
     font-family: var(--font-mono);
     font-weight: bold;
     letter-spacing: 3px;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 12px;
     transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
-    box-shadow: inset 0 0 20px rgba(0, 255, 204, 0.05), 0 10px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 20px rgba(0, 210, 255, 0.2);
     position: relative;
     overflow: hidden;
     font-size: 14px;
@@ -629,40 +633,36 @@ body::after {
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(0, 255, 204, 0.3), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
     transition: all 0.6s ease;
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, rgba(0, 255, 204, 0.2) 0%, rgba(0, 150, 255, 0.2) 100%);
-    box-shadow: inset 0 0 30px rgba(0, 255, 204, 0.2), 0 15px 30px rgba(0,0,0,0.6), 0 0 20px rgba(0, 255, 204, 0.3);
+    box-shadow: 0 15px 30px rgba(0, 210, 255, 0.3);
     transform: translateY(-3px);
-    color: #fff;
-    text-shadow: 0 0 8px #fff;
-    border-color: #fff;
 }
 
 .btn-primary:hover::before { left: 100%; }
 
 .btn-secondary {
-    background: rgba(255,255,255,0.03);
+    background: rgba(255,255,255,0.8);
     color: var(--text-primary);
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(15,23,42,0.1);
     padding: 14px 28px;
     cursor: pointer;
     font-family: var(--font-mono);
-    border-radius: 6px;
+    border-radius: 8px;
     letter-spacing: 1px;
     transition: all 0.3s;
     font-size: 13px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 5px 15px rgba(15,23,42,0.05);
 }
 
 .btn-secondary:hover {
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(255,255,255,0.3);
+    background: #fff;
+    border-color: rgba(15,23,42,0.2);
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 20px rgba(15,23,42,0.08);
 }
 
 /* ================================================================
@@ -671,13 +671,13 @@ body::after {
 .progress-bar-container {
     width: 100%;
     height: 8px;
-    background: #000;
+    background: rgba(240, 244, 249, 0.6);
     border-radius: 4px;
     margin: 24px 0;
     overflow: hidden;
     position: relative;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.05);
 }
 
 .progress-bar {
@@ -686,18 +686,18 @@ body::after {
     background-color: var(--accent);
     background-image: linear-gradient(
         45deg,
-        rgba(255, 255, 255, 0.2) 25%,
+        rgba(255, 255, 255, 0.3) 25%,
         transparent 25%,
         transparent 50%,
-        rgba(255, 255, 255, 0.2) 50%,
-        rgba(255, 255, 255, 0.2) 75%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0.3) 75%,
         transparent 75%,
         transparent
     );
     background-size: 20px 20px;
     animation: progressStripes 1s linear infinite;
     transition: width 0.4s cubic-bezier(0.19, 1, 0.22, 1);
-    box-shadow: 0 0 15px rgba(0, 255, 204, 0.8), inset 0 0 5px rgba(255,255,255,0.5);
+    box-shadow: 0 0 15px rgba(0, 210, 255, 0.5), inset 0 0 5px rgba(255,255,255,0.8);
     position: relative;
     overflow: hidden;
     border-radius: 4px;
@@ -814,9 +814,10 @@ body::after {
 
 /* Metadata strip */
 .metadata-strip {
-    background: var(--bg-void);
-    border: 1px solid var(--border-subtle);
-    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.5), 0 4px 10px rgba(15, 23, 42, 0.03);
+    border-radius: 8px;
     padding: 12px 16px;
     margin-top: 16px;
     font-family: var(--font-mono);
@@ -828,6 +829,8 @@ body::after {
     max-width: 500px;
     margin-left: auto;
     margin-right: auto;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 .metadata-strip .meta-label {
@@ -835,7 +838,8 @@ body::after {
 }
 
 .metadata-strip .meta-value {
-    color: var(--accent);
+    color: var(--danger);
+    font-weight: bold;
 }
 
 /* ================================================================
@@ -844,14 +848,15 @@ body::after {
 #comparison-modal {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(2, 2, 8, 0.95);
+    background: rgba(244, 247, 254, 0.85); /* Light frost overlay */
     z-index: 1000;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 40px;
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: opacity 0.4s ease;
 }
 
@@ -860,10 +865,11 @@ body::after {
     width: 100%;
     max-width: 900px;
     aspect-ratio: 16/9;
-    background: var(--bg-void);
-    border: 1px solid var(--border-accent);
-    border-radius: 6px;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
     overflow: hidden;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.15);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
 }
 
@@ -947,6 +953,91 @@ body::after {
 }
 
 /* ================================================================
+   File Item Processing States
+   ================================================================ */
+.file-item.success {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(139, 126, 116, 0.3);
+}
+
+.file-item.error {
+    border-color: var(--danger);
+    box-shadow: 0 0 8px rgba(163, 122, 107, 0.4);
+}
+
+.file-item.error::after {
+    content: '\26A0';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    background: rgba(56, 52, 49, 0.85);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--danger);
+    pointer-events: none;
+}
+
+/* ================================================================
+   Health Status Indicator
+   ================================================================ */
+.health-indicator {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: rgba(56, 52, 49, 0.9);
+    color: #eaddce;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    z-index: 500;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s;
+}
+
+.health-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
+    display: inline-block;
+    transition: background 0.3s;
+}
+
+.health-indicator.loading .health-dot {
+    background: var(--danger);
+    animation: pulseGlow 1.5s infinite;
+}
+
+.health-indicator.healthy .health-dot {
+    background: var(--accent);
+}
+
+.health-indicator.error .health-dot {
+    background: var(--danger);
+}
+
+.health-indicator.healthy {
+    border-color: rgba(139, 126, 116, 0.4);
+}
+
+.health-indicator.error {
+    border-color: rgba(163, 122, 107, 0.5);
+}
+
+/* ================================================================
    Responsive Design
    ================================================================ */
 @media (max-width: 600px) {
@@ -1008,6 +1099,13 @@ body::after {
 
     .metadata-strip {
         font-size: 10px;
+    }
+
+    .health-indicator {
+        bottom: 8px;
+        right: 8px;
+        font-size: 10px;
+        padding: 6px 10px;
     }
 }
 
