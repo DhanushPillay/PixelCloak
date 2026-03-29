@@ -721,7 +721,9 @@ body::after {
 }
 
 .spin {
+    display: inline-block;
     animation: spin 1.5s linear infinite;
+    transform-origin: center;
 }
 
 /* Processing timer */
