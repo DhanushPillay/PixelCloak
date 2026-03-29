@@ -47,18 +47,18 @@
                 <p class="font-mono text-muted">DRAG & DROP IMAGES OR CLICK TO BROWSE (MAX 100MB)</p>
             </div>
 
-            <!-- FILE PREVIEW AREA -->
-            <div id="file-preview-section" class="hidden">
-                <h4 class="section-title text-accent">
-                    <i data-feather="cpu"></i> TARGET_FILES (<span id="file-count">0</span>)
-                </h4>
-                <div id="file-grid" class="file-grid">
-                    <!-- Image previews injected via JS -->
-                </div>
-            </div>
-
             <!-- ACTION / PROGRESS AREA -->
             <div id="action-area" class="card hidden">
+                <!-- FILE PREVIEW AREA -->
+                <div id="file-preview-section" class="hidden mb-4" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 10px; margin-bottom: 25px;">
+                    <h4 class="section-title text-accent">
+                        <i data-feather="cpu"></i> TARGET_FILES (<span id="file-count">0</span>)
+                    </h4>
+                    <div id="file-grid" class="file-grid">
+                        <!-- Image previews injected via JS -->
+                    </div>
+                </div>
+
                 <!-- Idle State with Mode Selector -->
                 <div id="state-idle">
                     <div class="mode-selector-container">
@@ -86,6 +86,23 @@
                                 <div class="mode-param-label">STEPS</div>
                             </div>
                         </div>
+                        
+                        <div class="advanced-options mt-4" style="text-align: left; padding: 15px; border: 1px solid rgba(139, 126, 116, 0.3); border-radius: 4px; background: rgba(0, 0, 0, 0.4);">
+                            <h4 class="text-accent mb-2" style="font-family: var(--font-mono); margin-top: 0;">[ ADVANCED_TARGETING ]</h4>
+                            <div style="margin-bottom: 15px;">
+                                <label for="target-prompt" class="font-mono text-small text-muted mb-2" style="display: block;">TARGET_PROMPT (OPTIONAL)</label>
+                                <input type="text" id="target-prompt" placeholder="e.g. 'a highly detailed painting of a garbage can'" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid var(--accent); color: var(--text-primary); font-family: var(--font-mono); font-size: 14px;">
+                                <div class="text-small text-muted mt-2" style="font-size: 11px;">If provided, pushes image features towards this text concept instead of maximizing distance.</div>
+                            </div>
+                            <div>
+                                <label class="font-mono text-small text-muted" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                    <input type="checkbox" id="use-robustness" style="accent-color: var(--accent); width: 16px; height: 16px;">
+                                    ENABLE_EOT_ROBUSTNESS
+                                </label>
+                                <div class="text-small text-muted mt-2" style="font-size: 11px;">Applies random scaling and blurring during attack to survive compression. (Slower)</div>
+                            </div>
+                        </div>
+
                         <div class="text-muted text-small mt-4 mb-4">
                             *Note: Adversarial perturbations are fragile. JPEG compression or network downsampling may neutralize protection. PNG output required.
                         </div>
@@ -99,7 +116,7 @@
 
                 <!-- Processing State -->
                 <div id="state-processing" class="hidden text-center">
-                    <i data-feather="activity" class="spin text-accent mb-4" style="width: 32px; height: 32px;"></i>
+                    <i data-feather="loader" class="spin text-accent mb-4" style="width: 32px; height: 32px;"></i>
                     <h3 class="glitch-text mb-4" data-text="APPLYING_GRADIENTS...">APPLYING_GRADIENTS... <span id="progress-text">0%</span></h3>
                     <div class="processing-file-counter" id="file-counter">PROCESSING FILE 0 / 0</div>
                     <div class="progress-bar-container">
