@@ -75,14 +75,11 @@ def verify_images(original_path, cloaked_path, amplify=50, output_path="POISON_L
     }
 
 
-def compare_clip_embeddings(original_path, cloaked_path):
+def compare_clip_embeddings(original_path, cloaked_path, target_prompt=None):
     """
-    Load CLIP ViT-B/32 and compute cosine similarity between the
-    original and cloaked image embeddings. This is the single most
-    useful metric for quantifying how much the attack disrupted
-    CLIP's understanding of the image.
-
-    Returns cosine similarity as a float (lower = more disrupted).
+    Load CLIP ViT-B/32 and compute cosine similarity.
+    If target_prompt is None: returns similarity between original and cloaked image embeddings.
+    If target_prompt is given: returns similarity of original to prompt, and cloaked to prompt.
     """
     try:
         import torch
@@ -97,7 +94,14 @@ def compare_clip_embeddings(original_path, cloaked_path):
         return None
 
     print("Loading CLIP model for embedding comparison...")
-    device = torch.device("cpu")
+    
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+        
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
     model.eval()
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
@@ -123,14 +127,33 @@ def compare_clip_embeddings(original_path, cloaked_path):
         # L2-normalise
         feat_orig = feat_orig / feat_orig.norm(p=2, dim=-1, keepdim=True)
         feat_cloak = feat_cloak / feat_cloak.norm(p=2, dim=-1, keepdim=True)
+        
+        if target_prompt:
+            text_inputs = processor(text=[target_prompt], return_tensors="pt", padding=True).to(device)
+            feat_text = model.get_text_features(**text_inputs)
+            feat_text = extract_feats(feat_text)
+            feat_text = feat_text / feat_text.norm(p=2, dim=-1, keepdim=True)
+            
+            orig_to_text = torch.nn.functional.cosine_similarity(feat_orig, feat_text).item()
+            cloak_to_text = torch.nn.functional.cosine_similarity(feat_cloak, feat_text).item()
+            
+            del model
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+                
+            return {
+                "orig_to_text": round(orig_to_text, 6),
+                "cloak_to_text": round(cloak_to_text, 6)
+            }
+        else:
+            cosine_sim = torch.nn.functional.cosine_similarity(feat_orig, feat_cloak).item()
 
-        cosine_sim = torch.nn.functional.cosine_similarity(feat_orig, feat_cloak).item()
+            # Clean up
+            del model
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
 
-    # Clean up
-    del model
-    torch.cuda.empty_cache()
-
-    return round(cosine_sim, 6)
+            return round(cosine_sim, 6)
 
 
 def main():
@@ -158,6 +181,10 @@ def main():
         help="Load CLIP ViT-B/32 and print cosine similarity between original and cloaked embeddings"
     )
     parser.add_argument(
+        "--target-prompt", type=str, default=None,
+        help="If provided, also measures similarity between images and this target text prompt."
+    )
+    parser.add_argument(
         "--json", action="store_true",
         help="Print results as machine-readable JSON"
     )
@@ -172,11 +199,15 @@ def main():
         sys.exit(1)
 
     # Optional CLIP comparison
-    clip_sim = None
-    if args.compare_clip:
-        clip_sim = compare_clip_embeddings(args.original, args.cloaked)
-        if clip_sim is not None:
-            results["clip_cosine_similarity"] = clip_sim
+    clip_sim_result = None
+    if args.compare_clip or args.target_prompt:
+        clip_sim_result = compare_clip_embeddings(args.original, args.cloaked, args.target_prompt)
+        if clip_sim_result is not None:
+            if isinstance(clip_sim_result, dict):
+                results["clip_similarity_orig_text"] = clip_sim_result["orig_to_text"]
+                results["clip_similarity_cloak_text"] = clip_sim_result["cloak_to_text"]
+            else:
+                results["clip_cosine_similarity"] = clip_sim_result
 
     # Output
     if args.json:
@@ -192,14 +223,24 @@ def main():
             print(f"\nExtracted poison layer (amplified {args.amplify}×):")
             print(f"-> Saved '{args.output}'")
 
-        if clip_sim is not None:
-            print(f"\n🔬 CLIP Cosine Similarity: {clip_sim:.6f}")
-            if clip_sim > 0.95:
-                print("   ⚠  High similarity — perturbation had minimal effect on CLIP features.")
-            elif clip_sim > 0.80:
-                print("   ✓  Moderate disruption — CLIP features partially shifted.")
+        if clip_sim_result is not None:
+            if isinstance(clip_sim_result, dict):
+                print(f"\n🔬 CLIP Text-Targeted Similarity (Target: '{args.target_prompt}')")
+                print(f"   Original -> Text: {clip_sim_result['orig_to_text']:.6f}")
+                print(f"   Cloaked  -> Text: {clip_sim_result['cloak_to_text']:.6f}")
+                diff = clip_sim_result['cloak_to_text'] - clip_sim_result['orig_to_text']
+                if diff > 0.05:
+                    print(f"   ✅ Targeted attack successful (+{diff:.4f} similarity to target)")
+                else:
+                    print(f"   ⚠  Targeted attack had minimal impact.")
             else:
-                print("   ✓✓ Strong disruption — CLIP features significantly altered.")
+                print(f"\n🔬 CLIP Cosine Similarity: {clip_sim_result:.6f}")
+                if clip_sim_result > 0.95:
+                    print("   ⚠  High similarity — perturbation had minimal effect on CLIP features.")
+                elif clip_sim_result > 0.80:
+                    print("   ✓  Moderate disruption — CLIP features partially shifted.")
+                else:
+                    print("   ✅ Strong disruption — CLIP features heavily distorted.")
 
 
 if __name__ == "__main__":
