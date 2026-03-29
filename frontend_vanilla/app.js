@@ -559,6 +559,16 @@ btnStart.addEventListener('click', async function() {
         formData.append('file', entry.file);
         formData.append('mode', currentMode);
 
+        var targetPrompt = document.getElementById('target-prompt').value;
+        if (targetPrompt && targetPrompt.trim() !== '') {
+            formData.append('target_prompt', targetPrompt.trim());
+        }
+
+        var useRobustness = document.getElementById('use-robustness').checked;
+        if (useRobustness) {
+            formData.append('use_robustness', 'true');
+        }
+
         try {
             var response = await fetch(API_URL + '/cloak', {
                 method: 'POST',
