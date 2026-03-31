@@ -1,28 +1,27 @@
 # PixelCloak
 
-CPU-only adversarial image cloaking tool using **CLIP-driven PGD attacks** to disrupt feature-space alignment in diffusion-style models (Stable Diffusion, DALL-E, Midjourney fine-tuning).
+Adversarial image cloaking tool using **ensemble CLIP/SigLIP** + **Momentum Iterative FGSM (MI-FGSM)** with optional **Expectation over Transformation (EoT)** to disrupt feature-space alignment in diffusion-style models (Stable Diffusion, DALL-E, Midjourney fine-tuning).
 
-The attack uses **negated cosine similarity** on L2-normalised CLIP ViT-B/32 features as the loss function. The PGD loop iteratively perturbs image pixels to maximise the distance between the adversarial and original CLIP embeddings, making it harder for downstream models to learn your likeness.
+The attack maximises the distance between the adversarial and original visual embeddings (negated cosine similarity), averaged across multiple vision encoders, while keeping perceptual quality with LPIPS regularisation and edge-aware epsilon scaling.
 
 ## Features
 
-- **FastAPI backend** with CLIP `openai/clip-vit-base-patch32` surrogate model
+- **FastAPI backend** attacking an **ensemble**: `openai/clip-vit-base-patch32`, `openai/clip-vit-large-patch14`, `google/siglip-base-patch16-224`
+- **MI-FGSM** with momentum + **edge-aware epsilon** and optional **EoT (JPEG-ish noise, resize, blur)** for transferability
 - **Three attack modes**: Fast (FGSM 1-step), Balanced (PGD 10-step), Strong (PGD 20-step)
-- **CPU-only** — no GPU required. Perturbation computed at 224×224, upscaled to original resolution
-- **PNG output** with rich response headers: mode, steps, epsilon, time, max/mean pixel delta
+- **LPIPS regularisation** to keep perturbations imperceptible; PNG output with rich headers
 - **Rate limiting** (slowapi) and magic-byte file validation for security
-- **Elite cyberpunk frontend**: matrix rain, glitch text, glassmorphism, comparison slider, ambient audio
-- **verify_poison.py**: CLI tool with CLIP cosine similarity measurement and JSON output
+- **Frontend**: matrix rain, glitch text, glassmorphism, comparison slider, ambient audio
+- **Verification CLI**: `tools/verify_poison.py` with CLIP/SigLIP cosine similarity and JSON output
 
 ## Quickstart
 
 ### Windows (PowerShell)
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
 ### macOS (zsh)
@@ -30,8 +29,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
 ### Linux (bash)
@@ -39,11 +37,10 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-Then open `frontend_vanilla/index.html` in your browser (or serve it with any static file server).
+Then open `frontend_vanilla/index.html` in your browser (or serve it with any static file server). Use the **USE_EOT_ROBUSTNESS** toggle for transferability.
 
 ### Custom API URL
 
@@ -64,7 +61,7 @@ export PIXELCLOAK_ALLOWED_ORIGINS="https://your-domain.com,https://www.your-doma
 ## API
 
 ### `GET /health`
-Returns `{ "status": "healthy", "model_loaded": true, "device": "cpu" }`
+Returns `{ "status": "healthy", "models_loaded": 3, "device": "cpu"|"cuda" }`
 
 ### `POST /cloak`
 - **Body**: multipart form — `file` (image), `mode` (fast | balanced | strong)
@@ -104,16 +101,19 @@ This pushes the adversarial image's CLIP embedding **away** from the original, d
 
 ```bash
 # Basic usage
-python verify_poison.py original.png cloaked.png
+python tools/verify_poison.py original.png cloaked.png
 
 # Custom amplification and output path
-python verify_poison.py original.png cloaked.png --amplify 100 --output diff.png
+python tools/verify_poison.py original.png cloaked.png --amplify 100 --output diff.png
 
 # Measure CLIP embedding disruption (most useful metric)
-python verify_poison.py original.png cloaked.png --compare-clip
+python tools/verify_poison.py original.png cloaked.png --compare-clip
 
 # Machine-readable JSON output
-python verify_poison.py original.png cloaked.png --compare-clip --json
+python tools/verify_poison.py original.png cloaked.png --compare-clip --json
+
+# Cross-model robustness check (CLIP-B/L + SigLIP)
+python tools/verify_poison.py original.png cloaked.png --compare-all
 ```
 
 ## Known Limitations
@@ -127,17 +127,18 @@ python verify_poison.py original.png cloaked.png --compare-clip --json
 ## Project Layout
 
 ```
-backend/              FastAPI + CLIP PGD engine
-  main.py             API server with attack logic
+README.md             Project overview (only file in root)
+assets/
+  samples/            Example images (moved out of root)
+backend/              FastAPI + ensemble adversarial engine
+  main.py             API server bootstrap
   requirements.txt    Python dependencies
 frontend_vanilla/     Static HTML/JS/CSS UI
-  index.html          Page structure
-  style.css           Visual design system
-  app.js              Application logic
 docs/                 Supplemental documentation
   USAGE.md            Detailed usage guide
   SECURITY_NOTES.md   Security model and expectations
-verify_poison.py      CLI verification utility
+tools/
+  verify_poison.py    CLI verification utility
 ```
 
 ## License
