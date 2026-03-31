@@ -93,8 +93,11 @@
                                 <label for="target-prompt" class="font-mono text-small text-muted mb-2" style="display: block;">TARGET_PROMPT (OPTIONAL)</label>
                                 <input type="text" id="target-prompt" placeholder="e.g. 'a highly detailed painting of a garbage can'" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid var(--accent); color: var(--text-primary); font-family: var(--font-mono); font-size: 14px;">
                                 <div class="text-small text-muted mt-2" style="font-size: 11px;">If provided, pushes image features towards this text concept instead of maximizing distance.</div>
-                            </div>
-                            <div>
+                            </div>                              <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="use-robustness" style="accent-color: var(--accent); width: 16px; height: 16px;">
+                                <label for="use-robustness" class="font-mono text-small text-muted" style="cursor: pointer;">USE_EOT_ROBUSTNESS</label>
+                              </div>
+                              <div class="text-small text-muted" style="font-size: 11px; margin-bottom: 15px;">Expectation over Transformation: Simulates JPEG compression and resizing to survive chat-bot web uploads. Slower but significantly more effective.</div>                            <div>
                                 <label class="font-mono text-small text-muted" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                                     <input type="checkbox" id="use-robustness" style="accent-color: var(--accent); width: 16px; height: 16px;">
                                     ENABLE_EOT_ROBUSTNESS
