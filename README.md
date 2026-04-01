@@ -1,13 +1,15 @@
 # PixelCloak
 
-Adversarial image cloaking tool using **ensemble CLIP/SigLIP** + **Momentum Iterative FGSM (MI-FGSM)** with optional **Expectation over Transformation (EoT)** to disrupt feature-space alignment in diffusion-style models (Stable Diffusion, DALL-E, Midjourney fine-tuning).
+Adversarial image cloaking tool using **ensemble CLIP/SigLIP** + **Momentum Iterative FGSM (MI-FGSM)** with optional **Expectation over Transformation (EoT)** to disrupt feature-space alignment in diffusion-style models and multimodal LLMs.
 
-The attack maximises the distance between the adversarial and original visual embeddings (negated cosine similarity), averaged across multiple vision encoders, while keeping perceptual quality with LPIPS regularisation and edge-aware epsilon scaling.
+The attack supports **Targeted Image-to-Image Feature Collision**, maximizing the cosine similarity between the adversarial image and a distinct target image (or default cryptographic noise), computed natively at full resolution to survive advanced tile-scaling bypasses used by commercial AIs.
 
 ## Features
 
-- **FastAPI backend** attacking an **ensemble**: `openai/clip-vit-base-patch32`, `openai/clip-vit-large-patch14`, `google/siglip-base-patch16-224`
-- **MI-FGSM** with momentum + **edge-aware epsilon** and optional **EoT (JPEG-ish noise, resize, blur)** for transferability
+- **Targeted Feature Collision**: Directly targets custom uploaded image features or a localized cryptographic noise default (`assets/default_target.png`).
+- **Native Resolution Gradients**: Computes the backward pass directly on the full-resolution image instead of a 224x224 thumbnail, shattering commercial AI tile-grid upscaling filters (e.g., GPT-4o, Claude).
+- **FastAPI backend** attacking a **diverse ensemble**: `openai/clip-vit-base-patch32`, `openai/clip-vit-large-patch14`, `google/siglip-base-patch16-224`
+- **MI-FGSM** with momentum + **edge-aware epsilon** and optional **EoT (JPEG-ish noise, resize, blur)** for robust transferability
 - **Three attack modes**: Fast (FGSM 1-step), Balanced (PGD 10-step), Strong (PGD 20-step)
 - **LPIPS regularisation** to keep perturbations imperceptible; PNG output with rich headers
 - **Rate limiting** (slowapi) and magic-byte file validation for security
@@ -89,13 +91,13 @@ Returns `{ "status": "healthy", "models_loaded": 3, "device": "cpu"|"cuda" }`
 
 ## Loss Function
 
-The attack minimises:
+The engine computes gradients natively across the full-resolution target, resolving commercial AI chunking bypasses. The attack primarily relies on **Image-to-Image Feature Collision**:
 
 ```
-loss = -cosine_similarity(CLIP(adversarial), CLIP(original))
+loss = +cosine_similarity(Ensemble(adversarial), Ensemble(target_image))
 ```
 
-This pushes the adversarial image's CLIP embedding **away** from the original, disrupting any model that uses CLIP-family encoders for conditioning or fine-tuning.
+If left unassigned, this forces the AI to "hallucinate" cryptographic random noise (`assets/default_target.png`) instead of parsing your image. If users upload a custom file (e.g., a garbage truck), the image mathematically aligns with that secondary object across all latent variables.
 
 ## Verify Poison Script
 
