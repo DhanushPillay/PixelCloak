@@ -559,6 +559,11 @@ btnStart.addEventListener('click', async function() {
         formData.append('file', entry.file);
         formData.append('mode', currentMode);
 
+        var targetImageInput = document.getElementById('target-image');
+        if (targetImageInput && targetImageInput.files.length > 0) {
+            formData.append('target_image', targetImageInput.files[0]);
+        }
+
         var targetPrompt = document.getElementById('target-prompt').value;
         if (targetPrompt && targetPrompt.trim() !== '') {
             formData.append('target_prompt', targetPrompt.trim());
