@@ -1,4 +1,5 @@
 import asyncio
+import os
 from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import Response, JSONResponse
 from PIL import Image
@@ -46,6 +47,7 @@ async def apply_cloak(
     file: UploadFile = File(...), 
     mode: str = Form("balanced"),
     target_prompt: str = Form(None),
+    target_image: UploadFile = File(None),
     use_robustness: bool = Form(False)
 ):
     if mode not in VALID_MODES:
@@ -79,6 +81,20 @@ async def apply_cloak(
     # Ensure targeted parameters aren't abused on untargeted runs, or clean them up
     prompt_val = target_prompt.strip() if target_prompt else None
 
+    target_img_pil = None
+    if target_image:
+        target_img_data, target_exceeded = await read_upload_with_limit(target_image, MAX_FILE_SIZE)
+        if not target_exceeded and validate_image_bytes(target_img_data):
+            try:
+                target_img_pil = Image.open(BytesIO(target_img_data)).convert("RGB")
+            except Exception:
+                pass
+    elif not prompt_val:
+        # Provide our own built-in confusing target image by default
+        default_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../assets/default_target.png"))
+        if os.path.exists(default_path):
+            target_img_pil = Image.open(default_path).convert("RGB")
+
     try:
         poisoned_bytes, p_time, max_delta, mean_delta = await asyncio.wait_for(
             asyncio.to_thread(
@@ -86,7 +102,8 @@ async def apply_cloak(
                 img, eps, steps, is_fgsm, 
                 prompt_val, 
                 use_robustness, 
-                1.0 # decay_momentum
+                1.0, # decay_momentum
+                target_img_pil
             ),
             timeout=PROCESSING_TIMEOUT,
         )
