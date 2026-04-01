@@ -15,8 +15,11 @@ Returns server status and model state.
 
 #### `POST /cloak`
 Multipart form upload with:
-- `file` — image file (PNG/JPEG, ≤10MB)
+- `file` — main image file (PNG/JPEG, ≤10MB)
 - `mode` — `fast` | `balanced` (default) | `strong`
+- `target_image` (Optional) — custom target image for Feature Collision (e.g., photo of noise or a garbage can).
+- `target_prompt` (Optional) — custom text prompt to push AI embeddings towards.
+- `use_robustness` (Optional) — activates Expectation over Transformation simulating compression noise.
 
 **Response**: PNG image bytes with metadata headers.
 
@@ -32,10 +35,10 @@ Multipart form upload with:
 | `X-PixelCloak-MeanDelta` | `0.89` | Mean pixel shift (0–255) |
 
 ### Recommended Workflow
-1. Upload PNG or JPEG (≤10MB). Backend converts to RGB.
-2. Backend computes PGD perturbation on 224×224 CLIP space using negated cosine similarity loss.
-3. Perturbation delta is bilinearly upscaled to original resolution and applied.
-4. Response is PNG. **Do not re-encode to JPEG** — this destroys the perturbation.
+1. Upload PNG or JPEG (≤10MB) in the UI. 
+2. Add a `CUSTOM TARGET IMAGE` object (strongly recommended: a photo of garbage or an empty wall). If you do not attach one, PixelCloak mathematically defaults to `assets/default_target.png` (built-in algorithmic noise).
+3. Backend computes PGD perturbation on latent features natively.
+4. Response is a cloaked PNG. **Do not re-encode to JPEG** — this destroys the perturbation. Ensure EoT Robustness is ON for chatbots!
 
 ### Rate Limiting
 The `/cloak` endpoint is rate-limited to **10 requests per minute per IP** via slowapi. Exceeding this returns HTTP 429.
