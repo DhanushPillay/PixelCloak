@@ -37,7 +37,8 @@ def extract_features(model_dict, x_norm, device):
 
 def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int, 
                            is_fgsm: bool = False, target_prompt: str = None, 
-                           use_robustness: bool = False, decay_momentum: float = 1.0) -> tuple:
+                           use_robustness: bool = False, decay_momentum: float = 1.0,
+                           target_image: Image.Image = None) -> tuple:
     """
     Applies Momentum-Iterative FGSM across an ensemble of vision encoders.
     """
@@ -56,21 +57,26 @@ def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int,
     # 2. Extract targets for each model
     targets_per_model = []
     
-    # We'll work at a fixed 224x224 space for the core attack loop, scaling base image
-    resize_transform = transforms.Resize((224, 224), antialias=True)
-    img_224 = resize_transform(img_tensor)
+    # We'll optimize the full-resolution image instead of a 224x224 thumbnail.
+    # Commercial AI like GPT-4o processes high-resolution tile grids; if we
+    # upscale a tiny 224x224 noise patch, it becomes soft, low-frequency blur
+    # which their visual filters easily ignore. We MUST compute gradients at native res.
+    model_resize = transforms.Resize((224, 224), antialias=True)
 
-    # Perceptual edge mask for dynamic epsilon
-    gray = img_224.mean(dim=1, keepdim=True)
+    # Perceptual edge mask for dynamic epsilon at NATIVE resolution
+    gray = img_tensor.mean(dim=1, keepdim=True)
     sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]], device=device).view(1,1,3,3)
     sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]], device=device).view(1,1,3,3)
     edge_x = F.conv2d(gray, sobel_x, padding=1)
     edge_y = F.conv2d(gray, sobel_y, padding=1)
     edges = torch.sqrt(edge_x**2 + edge_y**2 + 1e-8)
+    # Pad back to original size due to conv2d reducing dimension by 2
+    edges = F.pad(edges, (1, 1, 1, 1), mode='replicate')
     edges_norm = edges / (edges.max() + 1e-8)
     perceptual_mask = torch.clamp(edges_norm + 0.3, max=1.0)
 
-    # Pre-calculate target features for the ensemble
+    # Pre-calculate target features for the ensemble (this is still evaluated at 224x224)
+    img_base_224 = model_resize(img_tensor)
     with torch.no_grad():
         for m_dict in ensemble:
             model = m_dict["model"]
@@ -78,7 +84,18 @@ def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int,
             m_type = m_dict["type"]
             dtype = next(model.parameters()).dtype
 
-            if target_prompt and target_prompt.strip() and m_type == "clip":
+            if target_image:
+                # Targeted image attack (Feature Collision)
+                target_tensor = transforms.ToTensor()(target_image).unsqueeze(0).to(device)
+                target_224 = model_resize(target_tensor)
+                
+                mean = torch.tensor(m_dict["mean"]).view(1, 3, 1, 1).to(device)
+                std = torch.tensor(m_dict["std"]).view(1, 3, 1, 1).to(device)
+                norm_target_224 = (target_224 - mean) / std
+                
+                t_feats = extract_features(m_dict, norm_target_224, device)
+                targets_per_model.append(t_feats)
+            elif target_prompt and target_prompt.strip() and m_type == "clip":
                 # Targeted text attack (only standard CLIP supported for direct text inject right now)
                 inputs = proc(text=[target_prompt.strip()], return_tensors="pt", padding=True).to(device)
                 t_feats = model.get_text_features(**inputs)
@@ -88,7 +105,7 @@ def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int,
                 # Untargeted: push away from original features
                 mean = torch.tensor(m_dict["mean"]).view(1, 3, 1, 1).to(device)
                 std = torch.tensor(m_dict["std"]).view(1, 3, 1, 1).to(device)
-                norm_img_224 = (img_224 - mean) / std
+                norm_img_224 = (img_base_224 - mean) / std
                 
                 t_feats = extract_features(m_dict, norm_img_224, device)
                 targets_per_model.append(t_feats)
@@ -99,30 +116,34 @@ def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int,
     alpha = (dynamic_eps * 1.5) / max(steps, 1)
 
     if is_fgsm:
-        perturbed_224 = img_224.clone().detach()
+        perturbed_tensor = img_tensor.clone().detach()
     else:
-        noise = torch.empty_like(img_224).uniform_(-1, 1) * dynamic_eps
-        perturbed_224 = torch.clamp(img_224.clone().detach() + noise, 0.0, 1.0)
+        noise = torch.empty_like(img_tensor).uniform_(-1, 1) * dynamic_eps
+        perturbed_tensor = torch.clamp(img_tensor.clone().detach() + noise, 0.0, 1.0)
 
-    momentum_g = torch.zeros_like(img_224)
+    momentum_g = torch.zeros_like(img_tensor)
 
     # 4. Iterative Optimization
     for step in range(steps):
-        perturbed_224 = perturbed_224.detach().requires_grad_(True)
+        perturbed_tensor = perturbed_tensor.detach().requires_grad_(True)
         
-        # Apply EoT
-        adv_input = apply_eot(perturbed_224, use_robustness)
+        # Apply EoT at full resolution, then downscale for the models
+        adv_input = apply_eot(perturbed_tensor, use_robustness)
+        adv_input_224 = model_resize(adv_input)
         total_obj = 0.0
 
         for i, m_dict in enumerate(ensemble):
             mean = torch.tensor(m_dict["mean"]).view(1, 3, 1, 1).to(device)
             std = torch.tensor(m_dict["std"]).view(1, 3, 1, 1).to(device)
-            norm_perturbed = (adv_input - mean) / std
+            norm_perturbed = (adv_input_224 - mean) / std
 
             adv_features = extract_features(m_dict, norm_perturbed, device)
             t_feats = targets_per_model[i]
 
-            if target_prompt and target_prompt.strip() and m_dict["type"] == "clip":
+            if target_image:
+                # Maximize cosine similarity to targeted image (Feature Collision)
+                total_obj += F.cosine_similarity(adv_features, t_feats).mean()
+            elif target_prompt and target_prompt.strip() and m_dict["type"] == "clip":
                 # Maximize cosine similarity to targeted text
                 total_obj += F.cosine_similarity(adv_features, t_feats).mean()
             else:
@@ -134,8 +155,8 @@ def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int,
 
         # LPIPS Regularization to maintain visual quality
         if lpips_model is not None:
-            adv_lpips = perturbed_224 * 2.0 - 1.0
-            orig_lpips = img_224 * 2.0 - 1.0
+            adv_lpips = adv_input_224 * 2.0 - 1.0
+            orig_lpips = img_base_224 * 2.0 - 1.0
             # Float32 required for LPIPS usually
             perceptual_dist = lpips_model(adv_lpips.to(torch.float32), orig_lpips.to(torch.float32)).mean()
             total_obj = total_obj - 0.5 * perceptual_dist
@@ -151,7 +172,7 @@ def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int,
 
         # Update with Momentum (MI-FGSM)
         with torch.no_grad():
-            grad = perturbed_224.grad
+            grad = perturbed_tensor.grad
             # L1 norm standardization for momentum
             grad_l1_norm = torch.norm(grad, p=1, dim=[1, 2, 3], keepdim=True)
             grad_normalized = grad / (grad_l1_norm + 1e-8)
@@ -159,20 +180,14 @@ def apply_ensemble_mi_fgsm(image: Image.Image, eps_val: float, steps: int,
             momentum_g = decay_momentum * momentum_g + grad_normalized
             
             # Step in direction of momentum
-            perturbed_224 = perturbed_224 + alpha * momentum_g.sign()
+            perturbed_tensor = perturbed_tensor + alpha * momentum_g.sign()
 
             # Project to epsilon ball
-            delta = torch.clamp(perturbed_224 - img_224, min=-dynamic_eps, max=dynamic_eps)
-            perturbed_224 = torch.clamp(img_224 + delta, min=0.0, max=1.0)
+            delta = torch.clamp(perturbed_tensor - img_tensor, min=-dynamic_eps, max=dynamic_eps)
+            perturbed_tensor = torch.clamp(img_tensor + delta, min=0.0, max=1.0)
 
-    # 5. Upscale delta back to original image size
-    final_delta_224 = perturbed_224.detach() - img_224
-
-    if (orig_width, orig_height) != (224, 224):
-        upsample = torch.nn.Upsample(size=(orig_height, orig_width), mode='bilinear', align_corners=False)
-        final_delta_orig = upsample(final_delta_224)
-    else:
-        final_delta_orig = final_delta_224
+    # 5. Extract the final native-resolution delta
+    final_delta_orig = perturbed_tensor.detach() - img_tensor
 
     # 6. Apply to original image
     final_img_tensor = torch.clamp(img_tensor + final_delta_orig, 0.0, 1.0)
