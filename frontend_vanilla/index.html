@@ -87,17 +87,22 @@
                             </div>
                         </div>
                         
-                        <div class="advanced-options mt-4" style="text-align: left; padding: 15px; border: 1px solid rgba(139, 126, 116, 0.3); border-radius: 4px; background: rgba(0, 0, 0, 0.4);">
+                        <div class="advanced-options mt-4" style="text-align: left; padding: 15px; border: 1px solid var(--border-subtle); border-radius: 4px; background: var(--bg-surface);">
                             <h4 class="text-accent mb-2" style="font-family: var(--font-mono); margin-top: 0;">[ ADVANCED_TARGETING ]</h4>
-                            <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 20px;">
+                                <label class="font-mono text-small text-muted mb-2" style="display: block;">CUSTOM TARGET IMAGE (OPTIONAL)</label>
+                                <label for="target-image" class="btn-secondary" style="display: flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer; width: 100%; border: 1px dashed var(--border-subtle); text-transform: uppercase;">
+                                    <i data-feather="image" style="width: 16px; height: 16px;"></i> <span id="target-image-label">SELECT TARGET IMAGE FILE</span>
+                                    <input type="file" id="target-image" accept="image/*" style="display: none;" onchange="document.getElementById('target-image-label').textContent = this.files.length ? this.files[0].name : 'SELECT TARGET IMAGE FILE'">
+                                </label>
+                                <div class="text-small text-muted mt-2" style="font-size: 11px;">If left blank, PixelCloak automatically targets a built-in cryptographic noise profile.</div>
+                            </div>
+                            <div style="margin-bottom: 20px;">
                                 <label for="target-prompt" class="font-mono text-small text-muted mb-2" style="display: block;">TARGET_PROMPT (OPTIONAL)</label>
-                                <input type="text" id="target-prompt" placeholder="e.g. 'a highly detailed painting of a garbage can'" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid var(--accent); color: var(--text-primary); font-family: var(--font-mono); font-size: 14px;">
+                                <input type="text" id="target-prompt" placeholder="e.g. 'a painting of a garbage can'" style="width: 100%; padding: 10px; background: transparent; border: 1px solid var(--border-subtle); color: var(--text-primary); font-family: var(--font-mono); font-size: 14px; border-radius: 4px;">
                                 <div class="text-small text-muted mt-2" style="font-size: 11px;">If provided, pushes image features towards this text concept instead of maximizing distance.</div>
-                            </div>                              <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                                <input type="checkbox" id="use-robustness" style="accent-color: var(--accent); width: 16px; height: 16px;">
-                                <label for="use-robustness" class="font-mono text-small text-muted" style="cursor: pointer;">USE_EOT_ROBUSTNESS</label>
-                              </div>
-                              <div class="text-small text-muted" style="font-size: 11px; margin-bottom: 15px;">Expectation over Transformation: Simulates JPEG compression and resizing to survive chat-bot web uploads. Slower but significantly more effective.</div>                            <div>
+                            </div>
+                            <div style="margin-bottom: 10px;">
                                 <label class="font-mono text-small text-muted" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                                     <input type="checkbox" id="use-robustness" style="accent-color: var(--accent); width: 16px; height: 16px;">
                                     ENABLE_EOT_ROBUSTNESS
@@ -120,7 +125,9 @@
                 <!-- Processing State -->
                 <div id="state-processing" class="hidden text-center">
                     <i data-feather="loader" class="spin text-accent mb-4" style="width: 32px; height: 32px;"></i>
-                    <h3 class="glitch-text mb-4" data-text="APPLYING_GRADIENTS...">APPLYING_GRADIENTS... <span id="progress-text">0%</span></h3>
+                    <h3 class="mb-4" style="font-family: var(--font-mono); color: var(--text-primary); letter-spacing: 2px;">
+                        APPLYING_GRADIENTS... <span id="progress-text" class="text-accent">0%</span>
+                    </h3>
                     <div class="processing-file-counter" id="file-counter">PROCESSING FILE 0 / 0</div>
                     <div class="progress-bar-container">
                         <div id="progress-bar" class="progress-bar"></div>
